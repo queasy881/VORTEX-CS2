@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUIST — Showcase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ── Showcase-specific styles ── */
+
+.sc-hero {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding-top: 140px;
+}
+
+/* Video embed */
+.video-wrap {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto 80px;
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--card-b);
+  box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 60px rgba(232,35,58,0.06);
+  background: var(--bg2);
+}
+.video-wrap::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  z-index: 2;
+}
+.video-container {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 */
+}
+.video-container iframe {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.video-placeholder {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg2);
+  color: var(--t3);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  gap: 12px;
+}
+.video-placeholder svg {
+  opacity: 0.3;
+}
+
+/* Feature breakdown */
+.sc-features {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.sc-feature {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 24px;
+  padding: 36px 0;
+  border-bottom: 1px solid var(--card-b);
+  align-items: start;
+}
+.sc-feature:last-child { border-bottom: none; }
+
+.sc-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: var(--red-dim);
+  border: 1px solid rgba(232,35,58,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.sc-info h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+}
+.sc-info .sc-tags {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.sc-tag {
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.sc-tag.ext { background: rgba(51,136,255,0.08); color: var(--blue); border: 1px solid rgba(51,136,255,0.1); }
+.sc-tag.inj { background: rgba(232,35,58,0.08); color: var(--red); border: 1px solid rgba(232,35,58,0.1); }
+.sc-tag.safe { background: rgba(26,232,106,0.06); color: var(--green); border: 1px solid rgba(26,232,106,0.08); }
+.sc-tag.hud { background: rgba(255,159,26,0.08); color: #ff9f1a; border: 1px solid rgba(255,159,26,0.1); }
+
+.sc-info p {
+  color: var(--t2);
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 10px;
+}
+
+.sc-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sc-detail {
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--t3);
+  letter-spacing: 0.5px;
+}
+
+/* CTA banner */
+.sc-cta {
+  max-width: 900px;
+  margin: 60px auto 0;
+  background: linear-gradient(135deg, rgba(232,35,58,0.06), var(--card));
+  border: 1px solid rgba(232,35,58,0.1);
+  border-radius: 16px;
+  padding: 48px;
+  text-align: center;
+}
+.sc-cta h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.sc-cta p {
+  color: var(--t2);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .sc-feature { grid-template-columns: 1fr; gap: 16px; }
+  .sc-icon { width: 48px; height: 48px; font-size: 18px; border-radius: 10px; }
+  .sc-cta { padding: 28px; }
+  .sc-cta h2 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-brand">QUIST<span>.world</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html#features">Features</a>
+    <a href="showcase.html" class="active">Showcase</a>
+    <a href="index.html#pricing">Pricing</a>
+    <a href="index.html#about">About</a>
+    <a href="tos.html">Terms</a>
+    <a href="index.html#pricing" class="nav-cta">GET ACCESS</a>
+  </div>
+  <button class="hamburger" onclick="toggleNav()">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- HERO -->
+<section class="sc-hero">
+  <div class="section-label">// SHOWCASE</div>
+  <h2 class="section-title" style="margin-bottom:8px;">See it in action.</h2>
+  <p style="color:var(--t2);font-size:15px;max-width:460px;line-height:1.7;margin-bottom:48px;">
+    Watch QUIST in a live match — every feature demonstrated, every setting shown.
+  </p>
+</section>
+
+<!-- VIDEO -->
+<section style="padding-top:0;">
+  <div class="video-wrap reveal">
+    <div class="video-container">
+      <!-- 
+        Replace the VIDEO_ID below with your actual YouTube video ID.
+        Example: if your URL is https://youtube.com/watch?v=dQw4w9WgXcQ
+        then set VIDEO_ID to: dQw4w9WgXcQ 
+      -->
+      <div class="video-placeholder" id="videoPlaceholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        VIDEO COMING SOON
+        <span style="font-size:10px;color:var(--t4);margin-top:4px;">Replace VIDEO_ID in showcase.html to embed</span>
+      </div>
+      <!-- Uncomment and replace VIDEO_ID when ready:
+      <iframe 
+        src="https://www.youtube.com/embed/VIDEO_ID?rel=0&modestbranding=1&color=white" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+      </iframe>
+      -->
+    </div>
+  </div>
+
+  <!-- FEATURE BREAKDOWNS -->
+  <div class="sc-features">
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#8853;</div>
+      <div class="sc-info">
+        <h3>Bone-Scanning Aimbot</h3>
+        <div class="sc-tags">
+          <span class="sc-tag ext">External</span>
+          <span class="sc-tag safe">Memory Read</span>
+        </div>
+        <p>
+          Unlike traditional FOV checks that only look at one bone, QUIST scans 15 key bones 
+          per player — head, neck, spine, pelvis, shoulders, hands, knees, and feet. If any part 
+          of the enemy's body enters your FOV circle, they become a valid target. You aim at 
+          your selected hitbox (head, neck, chest, body) while the FOV check is against the 
+          nearest visible bone.
+        </p>
+        <p>
+          Two modes: smooth tracking with configurable smoothness (1-30), or instant flick. 
+          Multi-hitbox fallback chains let you set primary → secondary → tertiary hitboxes 
+          so if the head isn't reachable, it falls back to chest automatically.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">15 bones scanned</span>
+          <span class="sc-detail">smooth / flick</span>
+          <span class="sc-detail">multi-hitbox</span>
+          <span class="sc-detail">FOV 1-30°</span>
+          <span class="sc-detail">lock delay</span>
+          <span class="sc-detail">priority: FOV / dist / HP</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#9672;</div>
+      <div class="sc-info">
+        <h3>Full ESP Suite</h3>
+        <div class="sc-tags">
+          <span class="sc-tag ext">External</span>
+          <span class="sc-tag inj">Injected DLL</span>
+        </div>
+        <p>
+          Hybrid ESP — the external overlay handles radar, crosshair, FOV circle, and HUD elements, 
+          while an optional injected DLL renders in-game ESP via D3D11 for pixel-perfect player 
+          overlays. Box ESP supports full or corner styles with adjustable thickness. Health bars 
+          can be positioned left, right, or bottom with dynamic color gradients (green to red).
+        </p>
+        <p>
+          Every element is individually toggleable and color-customizable through the visual 
+          color picker with a hue bar and 16 preset swatches. Skeleton rendering shows 7 bone 
+          connections with optional joint dots. Distance-based snaplines with dashed/solid styles.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">box / corner</span>
+          <span class="sc-detail">skeleton</span>
+          <span class="sc-detail">health bar</span>
+          <span class="sc-detail">name / weapon</span>
+          <span class="sc-detail">distance</span>
+          <span class="sc-detail">snaplines</span>
+          <span class="sc-detail">head dot</span>
+          <span class="sc-detail">armor / helmet</span>
+          <span class="sc-detail">vis check</span>
+          <span class="sc-detail">grenades / bomb</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#11041;</div>
+      <div class="sc-info">
+        <h3>Direct2D Menu</h3>
+        <div class="sc-tags">
+          <span class="sc-tag safe">HWND Safe</span>
+          <span class="sc-tag ext">DirectComposition</span>
+        </div>
+        <p>
+          960×560 transparent overlay rendered with Direct2D and DirectComposition — true 
+          per-pixel alpha with no sharp window rectangle visible. The menu runs on its own 
+          thread and doesn't touch the game process at all. Segoe UI typography throughout, 
+          with 5 tabs (Combat, Visuals, Misc, HUD, Config) and scrollable cards with clipping.
+        </p>
+        <p>
+          Color pickers feature a full hue bar with 16 preset swatches and fine-tune RGB sliders. 
+          7 accent themes (red, blue, purple, green, orange, pink, cyan) change the entire menu 
+          color scheme instantly. The ESP preview card shows a live rendering of your current 
+          settings before you even enter a match.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">960×560</span>
+          <span class="sc-detail">per-pixel alpha</span>
+          <span class="sc-detail">7 themes</span>
+          <span class="sc-detail">hue bar picker</span>
+          <span class="sc-detail">ESP preview</span>
+          <span class="sc-detail">scrollable cards</span>
+          <span class="sc-detail">keybind capture</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#10033;</div>
+      <div class="sc-info">
+        <h3>Triggerbot</h3>
+        <div class="sc-tags">
+          <span class="sc-tag ext">External</span>
+          <span class="sc-tag safe">SendInput</span>
+        </div>
+        <p>
+          Fires automatically when your crosshair is on an enemy. Head-only mode uses real bone 
+          intersection — it reads the crosshair entity, resolves the pawn, gets the head bone 
+          position, and only fires if you're within 2.5° of the actual head. Not a simplified 
+          hitgroup check.
+        </p>
+        <p>
+          Configurable delay randomization (min/max ms) makes timing human-like. Burst mode limits 
+          shots per trigger hold. Auto-stop writes to movement force values to stop your character 
+          before firing for maximum accuracy.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">head-only mode</span>
+          <span class="sc-detail">delay randomization</span>
+          <span class="sc-detail">burst limit</span>
+          <span class="sc-detail">auto-stop</span>
+          <span class="sc-detail">bone intersection</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#9673;</div>
+      <div class="sc-info">
+        <h3>Config System</h3>
+        <div class="sc-tags">
+          <span class="sc-tag safe">Local Save</span>
+        </div>
+        <p>
+          Multi-config file browser — all configs saved as individual .cfg files in 
+          %LOCALAPPDATA%\cs2_cfg\. Create, load, save, and delete named profiles from the 
+          menu. A competitive preset resets everything then applies a clean tournament-safe 
+          profile: aimbot on head with FOV 3 and smooth 5, box ESP with health and names, 
+          radar, watermark, and hit indicators.
+        </p>
+        <p>
+          Every action triggers a toast notification at the bottom of the menu — "Saved: default", 
+          "Loaded: aggro", "Competitive preset loaded" — so you always know what happened. 
+          Keybinds for aimbot, triggerbot, and bhop are captured interactively: click the 
+          keybind row, press any key or mouse button, done.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">named profiles</span>
+          <span class="sc-detail">competitive preset</span>
+          <span class="sc-detail">toast notifications</span>
+          <span class="sc-detail">keybind capture</span>
+          <span class="sc-detail">120+ settings</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#10687;</div>
+      <div class="sc-info">
+        <h3>Radar &amp; HUD</h3>
+        <div class="sc-tags">
+          <span class="sc-tag ext">External</span>
+          <span class="sc-tag hud">Overlay</span>
+        </div>
+        <p>
+          Custom radar with configurable range, dot size, and background opacity. Shows enemy 
+          positions with team-colored dots, facing direction arrows, dead player X markers, 
+          grenade positions, and bomb location. Corner placement (TL/TR/BL/BR) with drag-able size.
+        </p>
+        <p>
+          Spectator list shows who's watching you with optional audio alerts. Velocity graph 
+          tracks your movement speed in real-time. The watermark displays FPS, spectator count, 
+          and clock in a styled dark box with a red accent line. Custom crosshair with size, gap, 
+          thickness, dot, and outline options.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">radar</span>
+          <span class="sc-detail">spectator list</span>
+          <span class="sc-detail">velocity graph</span>
+          <span class="sc-detail">watermark</span>
+          <span class="sc-detail">crosshair</span>
+          <span class="sc-detail">hit indicator</span>
+          <span class="sc-detail">bomb timer</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-feature reveal">
+      <div class="sc-icon">&#8861;</div>
+      <div class="sc-info">
+        <h3>Misc Features</h3>
+        <div class="sc-tags">
+          <span class="sc-tag ext">External</span>
+          <span class="sc-tag inj">Optional</span>
+        </div>
+        <p>
+          Bhop with auto-strafe and speed cap. Anti-flash reduces the flash overlay to a 
+          configurable maximum alpha. Glow ESP with pulsing animation and per-team colors. 
+          Recoil control with configurable strength and start bullet. FOV changer for wider 
+          field of view. Clan tag animator. Key display overlay showing your current inputs.
+        </p>
+        <p>
+          Hit indicators track real damage by monitoring entity HP changes — not hardcoded values. 
+          Kill shots show red markers, headshots show yellow. Damage numbers float upward with 
+          smooth animation. The crouch bug is fixed — eye height reads from m_vecViewOffset 
+          dynamically instead of using a hardcoded 64 units.
+        </p>
+        <div class="sc-details">
+          <span class="sc-detail">bhop</span>
+          <span class="sc-detail">anti-flash</span>
+          <span class="sc-detail">glow</span>
+          <span class="sc-detail">RCS</span>
+          <span class="sc-detail">FOV changer</span>
+          <span class="sc-detail">clan tag</span>
+          <span class="sc-detail">real damage tracking</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="sc-cta reveal">
+    <h2>Ready to try it?</h2>
+    <p>Get your key and start playing within minutes.</p>
+    <a href="index.html#pricing" class="btn-primary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Get a Key
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">QUIST</div>
+  <div class="footer-links">
+    <a href="index.html#features">Features</a>
+    <a href="showcase.html">Showcase</a>
+    <a href="index.html#pricing">Pricing</a>
+    <a href="index.html#about">About</a>
+    <a href="tos.html">Terms</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 QUIST. All rights reserved.</div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
