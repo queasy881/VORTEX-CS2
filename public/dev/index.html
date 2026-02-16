@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUIST — Command Center</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<div class="grain"></div>
+<div id="toast" class="toast"></div>
+
+<!-- Login -->
+<div id="loginView" class="view">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-glow"></div>
+      <div class="login-logo">Q</div>
+      <div class="login-brand">QUIST<span>.WORLD</span></div>
+      <div class="login-sub">COMMAND CENTER</div>
+      <div class="login-form">
+        <div class="input-group">
+          <svg class="input-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+          <input type="text" id="loginUser" placeholder="Username" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="input-group">
+          <svg class="input-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input type="password" id="loginPass" placeholder="Password">
+        </div>
+        <button class="btn-primary login-btn" onclick="login()">
+          <span>ACCESS SYSTEM</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <div id="loginErr" class="login-err"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="mainView" class="view" style="display:none">
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="sb-logo">Q</div><div class="sb-name">QUIST</div></div>
+    <nav class="sb-nav">
+      <button class="sb-btn active" onclick="showTab('dashboard',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="sb-btn" onclick="showTab('upload',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Upload</span>
+      </button>
+      <button class="sb-btn" onclick="showTab('builds',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <span>Builds</span>
+      </button>
+      <button class="sb-btn" onclick="showTab('keys',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        <span>Keys</span>
+      </button>
+      <button class="sb-btn" onclick="showTab('logs',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Logs</span>
+      </button>
+      <button class="sb-btn" onclick="showTab('settings',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-status"><span class="status-dot pulse"></span><span>Online</span></div>
+      <button class="sb-logout" onclick="logout()" title="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab active">
+      <div class="tab-head"><div><h1 class="tab-title">Dashboard</h1><p class="tab-sub">System overview & analytics</p></div>
+        <button class="btn-ghost" onclick="loadDashboard()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card" style="--ac:#ff3a3a"><div class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><div class="stat-val" id="statTotal">0</div><div class="stat-label">Total Downloads</div></div>
+        <div class="stat-card" style="--ac:#ff9f1a"><div class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-val" id="statToday">0</div><div class="stat-label">Today</div></div>
+        <div class="stat-card" style="--ac:#3af"><div class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777z"/></svg></div><div class="stat-val" id="statKeys">0</div><div class="stat-label">Total Keys</div></div>
+        <div class="stat-card" style="--ac:#3afe6a"><div class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-val" id="statActive">0</div><div class="stat-label">Active</div></div>
+      </div>
+      <h2 class="section-title">Current Builds</h2>
+      <div class="builds-duo">
+        <div class="build-cur int"><div class="bc-badge">INTERNAL</div><div class="bc-ver" id="curInternalVer">No build</div><div class="bc-sub">DLL — Manual Map</div></div>
+        <div class="build-cur ext"><div class="bc-badge">EXTERNAL</div><div class="bc-ver" id="curExternalVer">No build</div><div class="bc-sub">EXE + DLL Overlay</div></div>
+      </div>
+    </section>
+
+    <!-- Upload -->
+    <section id="tab-upload" class="tab">
+      <div class="tab-head"><div><h1 class="tab-title">Upload Build</h1><p class="tab-sub">Deploy new releases</p></div></div>
+      <div class="upload-card glass">
+        <div class="uc-section"><label class="uc-label">Build Type</label>
+          <div class="type-toggle"><button class="tt-btn active" onclick="setType('internal',this)">Internal (DLL)</button><button class="tt-btn" onclick="setType('external',this)">External (EXE)</button></div>
+        </div>
+        <div class="uc-section"><label class="uc-label">Version</label><input type="text" class="uc-input" id="uploadVersion" placeholder="e.g. 1.0.3"></div>
+        <div class="uc-section"><label class="uc-label">Changelog</label><textarea class="uc-input uc-ta" id="uploadChangelog" placeholder="What's new..."></textarea></div>
+        <div class="uc-section"><label class="uc-label">Main File</label>
+          <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <svg class="dz-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span class="dz-text" id="dropText">Drop file or click to browse</span>
+            <span class="dz-hint">.dll or .exe — max 50MB</span>
+            <input type="file" id="fileInput" accept=".dll,.exe" style="display:none" onchange="fileSelected(this)">
+          </div>
+        </div>
+        <div class="uc-section" id="dllField" style="display:none"><label class="uc-label">Companion DLL <span class="lbl-hint">(ESP overlay)</span></label>
+          <div class="drop-zone" id="dllDropZone" onclick="document.getElementById('dllInput').click()">
+            <svg class="dz-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="dz-text" id="dllDropText">Drop .dll here (optional)</span>
+            <input type="file" id="dllInput" accept=".dll" style="display:none" onchange="dllFileSelected(this)">
+          </div>
+        </div>
+        <label class="uc-check"><input type="checkbox" id="uploadLatest" checked><span class="ck-mark"></span><span>Set as latest build</span></label>
+        <button class="btn-primary" onclick="uploadBuild()" style="width:100%;margin-top:16px"><span>Deploy Build</span></button>
+        <div id="uploadStatus" class="upload-status"></div>
+      </div>
+    </section>
+
+    <!-- Builds -->
+    <section id="tab-builds" class="tab">
+      <div class="tab-head"><div><h1 class="tab-title">All Builds</h1><p class="tab-sub">Manage deployed releases</p></div></div>
+      <div id="buildsList" class="builds-list"></div>
+    </section>
+
+    <!-- Keys -->
+    <section id="tab-keys" class="tab">
+      <div class="tab-head"><div><h1 class="tab-title">License Keys</h1><p class="tab-sub">Generate & manage access</p></div></div>
+      <div class="keys-gen glass">
+        <h3 class="section-title">Generate Keys</h3>
+        <div class="kg-grid">
+          <div class="uc-section"><label class="uc-label">Count</label><input type="number" class="uc-input" id="keyCount" value="1" min="1" max="100"></div>
+          <div class="uc-section"><label class="uc-label">Duration</label>
+            <div class="dur-pills"><button class="dur-pill active" onclick="setDur(1,this)">1D</button><button class="dur-pill" onclick="setDur(7,this)">1W</button><button class="dur-pill" onclick="setDur(30,this)">1M</button><button class="dur-pill" onclick="setDur(365,this)">1Y</button><button class="dur-pill" onclick="setDur(9999,this)">∞</button></div>
+          </div>
+          <div class="uc-section"><label class="uc-label">Label</label><input type="text" class="uc-input" id="keyLabel" placeholder="e.g. Discord giveaway"></div>
+        </div>
+        <button class="btn-primary" onclick="genKeys()" style="margin-top:12px"><span>Generate</span></button>
+        <div id="genResult" class="gen-result" style="display:none"></div>
+      </div>
+      <div class="keys-tools">
+        <div class="glass" style="flex:1"><h3 class="section-title">HWID Reset</h3>
+          <div style="display:flex;gap:8px"><input type="text" class="uc-input" id="resetKeyCode" placeholder="QUIST-XXXX-XXXX-XXXX" style="flex:1"><button class="btn-ghost" onclick="resetByCode()">Reset</button></div>
+          <div id="resetStatus" class="upload-status"></div>
+        </div>
+        <div class="glass" style="flex:1"><h3 class="section-title">Search</h3>
+          <input type="text" class="uc-input" id="keySearch" placeholder="Search keys or labels..." oninput="renderKeys()">
+        </div>
+      </div>
+      <div class="key-filters">
+        <button class="kf-pill active" onclick="filterKeys('all',this)">All</button>
+        <button class="kf-pill" onclick="filterKeys('unused',this)">Unused</button>
+        <button class="kf-pill" onclick="filterKeys('active',this)">Active</button>
+        <button class="kf-pill" onclick="filterKeys('expired',this)">Expired</button>
+        <button class="kf-pill" onclick="filterKeys('banned',this)">Banned</button>
+        <button class="kf-pill" onclick="filterKeys('locked',this)">HWID Locked</button>
+      </div>
+      <div id="keysList" class="keys-list"></div>
+    </section>
+
+    <!-- Logs -->
+    <section id="tab-logs" class="tab">
+      <div class="tab-head"><div><h1 class="tab-title">Activity Logs</h1><p class="tab-sub">Recent downloads & events</p></div>
+        <button class="btn-ghost" onclick="loadLogs()">Refresh</button>
+      </div>
+      <div id="logsList" class="logs-list"><div class="empty-state">No logs yet</div></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="tab">
+      <div class="tab-head"><div><h1 class="tab-title">Settings</h1><p class="tab-sub">System configuration</p></div></div>
+      <div class="settings-grid">
+        <div class="glass"><h3 class="section-title">Change Password</h3>
+          <input type="password" class="uc-input" id="newPass" placeholder="New password (min 6)">
+          <button class="btn-primary" onclick="changePass()" style="margin-top:12px"><span>Update</span></button>
+          <div id="passStatus" class="upload-status"></div>
+        </div>
+        <div class="glass"><h3 class="section-title">API Reference</h3>
+          <div class="api-list">
+            <div class="api-row"><span class="api-m post">POST</span><code>/api/auth/validate</code></div>
+            <div class="api-row"><span class="api-m get">GET</span><code>/api/download/internal</code></div>
+            <div class="api-row"><span class="api-m get">GET</span><code>/api/download/external</code></div>
+            <div class="api-row"><span class="api-m get">GET</span><code>/api/download/external/dll</code></div>
+            <div class="api-row"><span class="api-m get">GET</span><code>/api/version/:type</code></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

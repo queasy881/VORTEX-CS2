@@ -1,0 +1,1 @@
+web: node server.js  initgit branch -M maingit add .git commit -m "quist backend"git remote add origin https://github.com/queasy881/quist.ai.gitgit push --force origin main

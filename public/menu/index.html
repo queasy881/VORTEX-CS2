@@ -1,0 +1,305 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QUIST</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#08080c;--s1:#0f0f16;--s2:#14141e;--s3:#1a1a28;--ac:#c41818;--ac2:#ff2828;--tx:#d8d8e4;--tx2:#808098;--tx3:#50506a;--gn:#2ae06a;--bd:#1e1e2e;--r:10px}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden}
+::selection{background:var(--ac);color:#fff}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+/* LOGIN */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:40px;width:360px;text-align:center}
+.login-logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;letter-spacing:8px;color:var(--ac2);margin-bottom:24px}
+.login-sub{font-size:11px;color:var(--tx3);margin-bottom:20px;letter-spacing:1px}
+.login-input{width:100%;padding:12px 16px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;text-align:center;outline:none;margin-bottom:12px}
+.login-input:focus{border-color:var(--ac)}
+.login-input::placeholder{color:var(--tx3)}
+.login-btn{width:100%;padding:12px;background:var(--ac);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:'Manrope',sans-serif;transition:.2s}
+.login-btn:hover{background:var(--ac2)}
+.login-btn:disabled{opacity:.4;cursor:not-allowed}
+.login-err{color:#ff4444;font-size:10px;margin-top:8px;min-height:14px}
+.login-remember{display:flex;align-items:center;gap:8px;margin-bottom:16px;justify-content:center}
+.login-remember input{accent-color:var(--ac)}
+.login-remember label{font-size:10px;color:var(--tx3);cursor:pointer}
+/* PANEL */
+.panel{display:none}
+.panel.active{display:block}
+.wrap{max-width:860px;margin:0 auto;padding:24px 16px}
+.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.logo{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;letter-spacing:6px;color:var(--ac2)}
+.stat{font-family:'Space Mono',monospace;font-size:10px;color:var(--tx3);letter-spacing:1px}
+.online-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.online-dot.on{background:var(--gn);box-shadow:0 0 6px var(--gn)}
+.online-dot.off{background:#ff3030;box-shadow:0 0 6px #ff3030}
+.tabs{display:flex;gap:2px;background:var(--s1);border-radius:var(--r);padding:3px;margin-bottom:16px}
+.tab{flex:1;padding:9px 0;text-align:center;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;background:none;color:var(--tx3);cursor:pointer;border-radius:8px;transition:all .2s}
+.tab:hover{color:var(--tx2)}.tab.a{background:var(--s2);color:var(--ac2);box-shadow:0 0 20px rgba(196,24,24,.08)}
+.pnl{display:none}.pnl.a{display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:16px;position:relative}
+.card::after{content:'';position:absolute;top:0;left:16px;right:16px;height:1px;background:linear-gradient(90deg,transparent,rgba(196,24,24,.15),transparent)}
+.card-t{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--ac);margin-bottom:12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.card-t:hover{color:var(--ac2)}
+.card-t::after{content:'\25B2';font-size:8px;color:var(--tx3);transition:transform .2s}
+.card.collapsed .card-t{margin-bottom:0}
+.card.collapsed .card-t::after{transform:rotate(180deg)}
+.card-body{overflow:hidden;transition:max-height .25s ease,opacity .2s ease;max-height:2000px;opacity:1}
+.card.collapsed .card-body{max-height:0;opacity:0}
+.row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.02)}.row:last-child{border-bottom:none}
+.row-l{font-size:12px;font-weight:500;color:var(--tx2)}.row-r{display:flex;align-items:center;gap:8px}
+.sw{position:relative;width:32px;height:17px;cursor:pointer;display:inline-block}.sw input{display:none}
+.sw .tr{position:absolute;inset:0;background:#222233;border-radius:9px;transition:.2s}.sw input:checked+.tr{background:var(--ac)}
+.sw .dot{position:absolute;top:2.5px;left:2.5px;width:12px;height:12px;background:#fff;border-radius:50%;transition:.2s}.sw input:checked~.dot{left:17.5px}
+.kb{padding:2px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--ac2);font-family:'Space Mono',monospace;font-size:9px;cursor:pointer;min-width:48px;text-align:center}
+.kb.w{animation:kpa .6s infinite}@keyframes kpa{50%{background:#200808}}
+.pills{display:flex;gap:4px;margin:6px 0}
+.pill{padding:4px 14px;font-size:10px;font-weight:700;letter-spacing:1px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;background:var(--s2);color:var(--tx3);transition:.2s}.pill.a{background:var(--ac);color:#fff;border-color:var(--ac)}.pill:hover{border-color:var(--tx3)}
+.sld{padding:6px 0}.sld-top{display:flex;justify-content:space-between;margin-bottom:6px}
+.sld-lb{font-size:11px;color:var(--tx3)}.sld-val{font-family:'Space Mono',monospace;font-size:11px;color:var(--ac2)}
+.sld-bar{position:relative;width:100%;height:4px;background:var(--s3);border-radius:2px;cursor:pointer}
+.sld-fill{position:absolute;top:0;left:0;height:100%;border-radius:2px;background:var(--ac)}
+.sld-knob{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.5);cursor:grab}
+.csw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0}
+.csw-box{width:24px;height:16px;border-radius:3px;border:1px solid rgba(255,255,255,.06)}
+.csw-lb{font-size:11px;color:var(--tx3)}.csw:hover .csw-lb{color:var(--tx)}
+.cpk-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(8px)}.cpk-ov.open{display:flex}
+.cpk{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:24px;width:320px}
+.cpk-title{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--ac2);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.cpk-x{background:none;border:1px solid var(--bd);border-radius:6px;color:var(--tx3);padding:3px 12px;cursor:pointer;font-size:10px;font-family:'Space Mono',monospace}
+.cpk-prev{width:100%;height:36px;border-radius:8px;margin-bottom:14px;border:1px solid rgba(255,255,255,.05)}
+.cpk-presets{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+.cpk-pc{width:26px;height:26px;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:.15s}.cpk-pc:hover{transform:scale(1.12)}.cpk-pc.sel{border-color:#fff}
+.cpk-sl{margin:8px 0}.cpk-sl-lb{font-size:9px;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;margin-bottom:4px}
+.cpk-sl-bar{position:relative;width:100%;height:10px;border-radius:5px;cursor:pointer}
+.cpk-sl-knob{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 4px rgba(0,0,0,.5);cursor:grab;border:2px solid rgba(0,0,0,.2)}
+.cpk-hex{display:flex;align-items:center;gap:8px;margin-top:10px}
+.cpk-hex input{background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:5px 8px;color:var(--tx);font-family:'Space Mono',monospace;font-size:11px;width:80px;text-align:center}
+.cpk-hex span{font-family:'Space Mono',monospace;font-size:10px;color:var(--tx3)}
+.cpk-apply{width:100%;padding:9px;margin-top:14px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;font-family:'Manrope',sans-serif}.cpk-apply:hover{background:var(--ac2)}
+.sec{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);margin:10px 0 4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.03)}
+.btns{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;padding:9px;border:none;border-radius:7px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:.2s}
+.btn-g{background:#0a2a12;color:var(--gn);border:1px solid #0a3a1a}.btn-g:hover{background:#0f3518}
+.btn-b{background:#0a1a30;color:#4488ee;border:1px solid #0a2a40}.btn-b:hover{background:#0f2040}
+.btn-r{background:#200a0a;color:#c44;border:1px solid #2a1515}.btn-r:hover{background:#2a0f0f}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(40px);padding:8px 24px;border-radius:8px;font-family:'Space Mono',monospace;font-size:10px;font-weight:600;opacity:0;transition:.3s;z-index:300;pointer-events:none}
+.toast.v{opacity:1;transform:translateX(-50%) translateY(0)}.toast.ok{background:#0a2a12;border:1px solid #1a4a2a;color:var(--gn)}.toast.inf{background:#0a1a30;border:1px solid #1a2a4a;color:#4488ee}
+.note{font-size:9px;color:var(--tx3);font-style:italic;padding:4px 0;opacity:.6}
+.logout-btn{background:none;border:1px solid var(--bd);border-radius:6px;color:var(--tx3);padding:4px 12px;cursor:pointer;font-size:9px;font-family:'Space Mono',monospace;margin-left:12px}
+.logout-btn:hover{color:var(--ac2);border-color:var(--ac)}
+</style></head><body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">QUIST</div>
+    <div class="login-sub">ENTER LICENSE KEY</div>
+    <input class="login-input" id="keyInput" placeholder="QUIST-XXXX-XXXX-XXXX" maxlength="20" autocomplete="off" spellcheck="false">
+    <div class="login-remember"><input type="checkbox" id="rememberKey" checked><label for="rememberKey">Remember key</label></div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">CONNECT</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- MAIN PANEL (hidden until auth) -->
+<div id="mainPanel" class="panel">
+<div class="wrap">
+<div class="head">
+  <span class="logo">QUIST</span>
+  <div style="display:flex;align-items:center">
+    <span class="online-dot" id="onlineDot"></span>
+    <span class="stat" id="sb">OFFLINE</span>
+    <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
+  </div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div id="content"></div>
+<div class="toast" id="toast"></div>
+</div>
+</div>
+
+<!-- COLOR PICKER OVERLAY -->
+<div class="cpk-ov" id="cpkOv" onclick="if(event.target===this)closeCpk()"><div class="cpk">
+<div class="cpk-title"><span id="cpkT">Color</span><button class="cpk-x" onclick="closeCpk()">ESC</button></div>
+<div class="cpk-prev" id="cpkB"></div><div class="cpk-presets" id="cpkPr"></div>
+<div class="cpk-sl"><div class="cpk-sl-lb"><span>HUE</span><span id="cHV">0</span></div><div class="cpk-sl-bar" id="cHT" style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)"><div class="cpk-sl-knob" id="cHK"></div></div></div>
+<div class="cpk-sl"><div class="cpk-sl-lb"><span>SAT</span><span id="cSV">100</span></div><div class="cpk-sl-bar" id="cST"><div class="cpk-sl-knob" id="cSK"></div></div></div>
+<div class="cpk-sl"><div class="cpk-sl-lb"><span>LUM</span><span id="cLV">50</span></div><div class="cpk-sl-bar" id="cLT"><div class="cpk-sl-knob" id="cLK"></div></div></div>
+<div class="cpk-hex"><span>HEX</span><input id="cHex" maxlength="7" oninput="hexIn()"><span id="cRGB">0,0,0</span></div>
+<button class="cpk-apply" onclick="applyCpk()">Apply</button></div></div>
+
+<script>
+// ========== STATE ==========
+var S={},licenseKey='',ws=null,cheatOnline=false,dirty=false,dT=null,inited=false,kP=null;
+
+// ========== LOGIN ==========
+function doLogin(){
+  var key=document.getElementById('keyInput').value.trim().toUpperCase();
+  if(!key){showLoginErr('Enter a key');return;}
+  document.getElementById('loginBtn').disabled=true;
+  document.getElementById('loginErr').textContent='Connecting...';
+  // Validate key via REST first
+  fetch('/api/menu/config',{headers:{'x-license-key':key}})
+    .then(function(r){
+      if(!r.ok) return r.json().then(function(d){throw new Error(d.error||'Invalid key')});
+      return r.json();
+    })
+    .then(function(d){
+      licenseKey=key;
+      if(d.config && Object.keys(d.config).length>0) S=d.config;
+      if(document.getElementById('rememberKey').checked) localStorage.setItem('quist_key',key);
+      showPanel();
+      connectWs();
+    })
+    .catch(function(e){showLoginErr(e.message||'Connection failed');document.getElementById('loginBtn').disabled=false;});
+}
+function showLoginErr(msg){document.getElementById('loginErr').textContent=msg}
+function doLogout(){
+  if(ws){try{ws.close()}catch(e){}}
+  licenseKey='';localStorage.removeItem('quist_key');
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('mainPanel').classList.remove('active');
+  document.getElementById('loginBtn').disabled=false;
+  document.getElementById('loginErr').textContent='';
+}
+function showPanel(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainPanel').classList.add('active');
+  if(!inited){buildTabs();initPicker();inited=true;}
+  aui();
+}
+// Auto-login
+(function(){
+  var saved=localStorage.getItem('quist_key');
+  if(saved){document.getElementById('keyInput').value=saved;doLogin();}
+  document.getElementById('keyInput').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
+})();
+
+// ========== WEBSOCKET ==========
+function connectWs(){
+  if(ws)try{ws.close()}catch(e){}
+  var proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host+'/ws?key='+encodeURIComponent(licenseKey)+'&role=menu');
+  ws.onopen=function(){toast('Connected','ok')};
+  ws.onmessage=function(e){
+    try{
+      var msg=JSON.parse(e.data);
+      if(msg.type==='status'){
+        cheatOnline=msg.online;
+        updateStatus();
+      } else if(msg.type==='settings'){
+        // Cheat sent its current settings
+        if(!dirty){S=msg.data;sui();}
+      } else if(msg.type==='keybind_result'){
+        // Keybind captured by cheat
+        if(msg.target&&msg.vk){
+          S[msg.target]=msg.vk;
+          S[msg.target+'Name']=msg.name||'?';
+          ukb();toast('Bound: '+msg.name,'ok');
+        }
+      }
+    }catch(ex){}
+  };
+  ws.onclose=function(){
+    cheatOnline=false;updateStatus();
+    setTimeout(connectWs,3000); // auto-reconnect
+  };
+  ws.onerror=function(){};
+}
+function wsSend(msg){
+  if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg));
+}
+function updateStatus(){
+  var dot=document.getElementById('onlineDot');
+  var sb=document.getElementById('sb');
+  if(cheatOnline){
+    dot.className='online-dot on';
+    sb.textContent='ONLINE | AIM:'+(S.aimEnabled?'ON':'off')+' \u2022 ESP:'+(S.espEnabled?'ON':'off');
+  } else {
+    dot.className='online-dot off';
+    sb.textContent='CHEAT OFFLINE';
+  }
+}
+
+// ========== UI BUILDERS (same as before) ==========
+var TK=['aimEnabled','aimShowFov','aimTeamCheck','fovFilled','aimMultiHitbox','aimAutoSwitch','aimIgnoreFlash','aimPerHitboxFov','trigEnabled','trigHeadOnly','trigAutoStop','rcsEnabled','rcsYaw','espEnabled','espBox','espHealth','espDistance','espSnaplines','espSkeleton','espHeadDot','espTeammates','radarEnabled','espName','espWeapon','espArmor','espScoped','espMoney','espDefuser','espHelmet','espPing','espFlashed','espPlace','espClan','espKills','espDefusing','espBot','espGrenades','espBomb','espBoxFilled','espHealthColor','espHpNumber','espSkelJointDots','espSnapDashed','espSnapDistColor','espTextBg','espVisCheck','espGrenadeWarn','espSmokeTimer','espBombDefuseInfo','bhopEnabled','bhopAutoStrafe','noFlashEnabled','noFlashTeam','bombTimerEnabled','glowEnabled','glowPulse','specListEnabled','specAlert','velEnabled','velGraph','watermarkEnabled','wmShowPing','wmShowSpec','wmClock','hitIndicator','hitDmgNumber','hitKillInd','hitHsInd','autoAccept','xhairEnabled','xhairDot','xhairOutline','fovChangerEnabled','clanTagEnabled','keyDisplayEnabled','nightMode','thirdPerson','radarFacing','radarDeadX','radarGrenades','radarBomb','radarNames'];
+var PRESETS=['#ff3030','#ff6030','#ffaa00','#ffff30','#30ff30','#30ffcc','#30ccff','#3060ff','#9030ff','#ff30ff','#ff3090','#ffffff','#cccccc','#666666','#ff0000','#00ff00','#0000ff','#00ffff'];
+var cpkTgt=null,cH=0,cS=100,cL=50;
+var COLS={enemy:['espEnemyR','espEnemyG','espEnemyB'],team:['espTeamR','espTeamG','espTeamB'],skel:['espSkelR','espSkelG','espSkelB'],snap:['espSnapR','espSnapG','espSnapB'],fov:['fovColorR','fovColorG','fovColorB'],glowE:['glowEnemyR','glowEnemyG','glowEnemyB'],glowT:['glowTeamR','glowTeamG','glowTeamB'],ename:['espNameR','espNameG','espNameB'],ewep:['espWeaponR','espWeaponG','espWeaponB'],einv:['espInvisR','espInvisG','espInvisB'],xhair:['xhairR','xhairG','xhairB']};
+var CN={enemy:'Enemy',team:'Team',skel:'Skeleton',snap:'Snapline',fov:'FOV',glowE:'Glow Enemy',glowT:'Glow Team',ename:'Name',ewep:'Weapon',einv:'Invisible',xhair:'Crosshair'};
+var SLD={aimFov:['FOV',1,30,.5,1],aimSmooth:['Smooth',1,20,.5,1],aimMaxDist:['Max Dist',500,10000,100,0],aimLockDelay:['Lock ms',0,500,10,0],aimHeadFov:['Head FOV',1,15,.5,1],aimBodyFov:['Body FOV',1,30,.5,1],fovThickness:['Thick',1,5,1,0],trigDelayMin:['Min ms',0,100,1,0],trigDelayMax:['Max ms',0,100,1,0],trigBurst:['Burst',0,10,1,0],rcsStrength:['Strength',0,2,.1,1],rcsStartBullet:['Start',1,10,1,0],espBoxThick:['Thick',1,4,1,0],espBoxFillOpacity:['Fill Alpha',.05,.5,.05,2],espSkelThick:['Thick',1,4,1,0],espHeadDotSize:['Size',1,8,1,0],espMaxDist:['Max Dist',500,10000,100,0],espHealthWidth:['HP Width',1,6,1,0],espHealthBgOpacity:['HP BG',.1,1,.1,1],espSnapThick:['Snap Thick',1,4,1,0],espFontScale:['Font',1,2,1,0],radarRange:['Range',500,5000,100,0],radarSize:['Size',80,400,10,0],radarDotSize:['Dot',2,10,1,0],radarBgOpacity:['BG Alpha',.1,1,.1,1],noFlashMax:['Max',0,1,.1,1],glowOpacity:['Opacity',.1,1,.1,1],glowStyle:['Style',0,3,1,0],hitFadeDuration:['Fade ms',100,1000,50,0],xhairSize:['Size',1,20,1,0],xhairGap:['Gap',0,10,1,0],xhairThick:['Thick',1,4,1,0],xhairOpacity:['Alpha',.1,1,.1,1],fovValue:['FOV',60,130,1,0],bhopSpeedCap:['Cap',0,500,10,0]};
+
+function tg(l,id,kb){var s='<div class="row"><span class="row-l">'+l+'</span><div class="row-r">';if(kb)s+='<button class="kb" data-bind="'+kb+'" onclick="skb(\''+kb+'\')">-</button>';return s+'<label class="sw"><input type="checkbox" id="'+id+'" onchange="sy()"><span class="tr"></span><span class="dot"></span></label></div></div>'}
+function sec(l){return'<div class="sec">'+l+'</div>'}
+function sd(k){return'<div class="sld" id="s_'+k+'"></div>'}
+function pl(id,key,opts){var s='<div class="pills" id="'+id+'">';for(var i=0;i<opts.length;i++)s+='<div class="pill" onclick="sp(\''+key+'\','+i+')">'+opts[i]+'</div>';return s+'</div>'}
+function cw(ck){return'<div class="csw" onclick="openCpk(\''+ck+'\')"><div class="csw-box" id="cpv_'+ck+'"></div><span class="csw-lb">'+CN[ck]+'</span></div>'}
+function nt(t){return'<div class="note">'+t+'</div>'}
+
+var TABS=[
+{n:'Combat',html:'<div class="grid"><div class="card"><div class="card-t">Aimbot</div>'+tg('Enable','aimEnabled','aimKey')+tg('Show FOV','aimShowFov')+tg('Team Check','aimTeamCheck')+tg('FOV Fill','fovFilled')+tg('Auto Switch','aimAutoSwitch')+tg('Ignore Flashed','aimIgnoreFlash')+sec('Mode')+pl('amP','aimMode',['Smooth','Flick'])+sec('Target')+pl('hbP','aimHitbox',['Head','Neck','Chest','Body'])+sec('Priority')+pl('prP','aimPriority',['FOV','Distance','Low HP'])+tg('Multi-Hitbox','aimMultiHitbox')+sec('Fallback 1')+pl('hb1P','aimHitbox1',['Head','Neck','Chest','Body'])+sec('Fallback 2')+pl('hb2P','aimHitbox2',['Head','Neck','Chest','Body'])+sec('Fallback 3')+pl('hb3P','aimHitbox3',['Head','Neck','Chest','Body'])+sd('aimFov')+sd('aimSmooth')+sd('aimMaxDist')+sd('aimLockDelay')+tg('Per-Hitbox FOV','aimPerHitboxFov')+sd('aimHeadFov')+sd('aimBodyFov')+sd('fovThickness')+sec('FOV Color')+cw('fov')+'</div><div><div class="card"><div class="card-t">Triggerbot</div>'+tg('Enable','trigEnabled','trigKey')+nt('Set both to 0ms for instant fire')+tg('Head Only','trigHeadOnly')+tg('Auto Stop','trigAutoStop')+sd('trigDelayMin')+sd('trigDelayMax')+sd('trigBurst')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Recoil</div>'+tg('Enable','rcsEnabled')+tg('Yaw','rcsYaw')+sd('rcsStrength')+sd('rcsStartBullet')+'</div></div></div>'},
+{n:'Visuals',html:'<div class="grid"><div class="card"><div class="card-t">ESP</div>'+tg('Enable','espEnabled')+tg('Box','espBox')+tg('Box Fill','espBoxFilled')+sd('espBoxFillOpacity')+tg('Health Bar','espHealth')+tg('HP Color','espHealthColor')+tg('HP Number','espHpNumber')+sd('espHealthWidth')+sd('espHealthBgOpacity')+tg('Snaplines','espSnaplines')+tg('Snap Dashed','espSnapDashed')+tg('Snap Dist Color','espSnapDistColor')+sd('espSnapThick')+tg('Skeleton','espSkeleton')+tg('Joint Dots','espSkelJointDots')+tg('Head Dot','espHeadDot')+tg('Teammates','espTeammates')+tg('Vis Check','espVisCheck')+sec('World')+tg('Grenades','espGrenades')+tg('Flash Warn','espGrenadeWarn')+tg('Smoke Timer','espSmokeTimer')+tg('Bomb','espBomb')+tg('Defuse Info','espBombDefuseInfo')+sec('Box Style')+pl('bsP','espBoxStyle',['Full','Corner'])+sec('HP Position')+pl('hpP','espHealthPos',['Left','Right','Bottom'])+sec('Snap Origin')+pl('soP','espSnapOrigin',['Bottom','Center','Top'])+sd('espBoxThick')+sd('espSkelThick')+sd('espHeadDotSize')+sd('espMaxDist')+'</div><div><div class="card"><div class="card-t">Text Tags</div>'+tg('Text BG','espTextBg')+sd('espFontScale')+tg('Name','espName')+tg('Weapon','espWeapon')+tg('Distance','espDistance')+tg('Armor','espArmor')+tg('Scoped','espScoped')+tg('Flashed','espFlashed')+tg('Defusing','espDefusing')+tg('Bot Tag','espBot')+tg('Money','espMoney')+tg('Ping','espPing')+tg('Kills','espKills')+tg('Location','espPlace')+tg('Clan Tag','espClan')+tg('Defuser','espDefuser')+tg('Helmet','espHelmet')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Colors</div>'+cw('enemy')+cw('team')+cw('skel')+cw('snap')+cw('ename')+cw('ewep')+cw('einv')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Glow</div>'+tg('Enable','glowEnabled')+tg('Pulse','glowPulse')+sd('glowOpacity')+sd('glowStyle')+cw('glowE')+cw('glowT')+'</div></div></div>'},
+{n:'Misc',html:'<div class="grid"><div><div class="card"><div class="card-t">Bunny Hop</div>'+tg('Enable','bhopEnabled','bhopKey')+tg('Auto Strafe','bhopAutoStrafe')+sd('bhopSpeedCap')+'</div><div class="card" style="margin-top:12px"><div class="card-t">No Flash</div>'+tg('Enable','noFlashEnabled')+tg('Team Flash','noFlashTeam')+sd('noFlashMax')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Bomb Timer</div>'+tg('Enable','bombTimerEnabled')+'</div><div class="card" style="margin-top:12px"><div class="card-t">FOV Changer</div>'+tg('Enable','fovChangerEnabled')+sd('fovValue')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Clan Tag</div>'+tg('Enable','clanTagEnabled')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Extras</div>'+tg('Auto Accept','autoAccept')+tg('Night Mode','nightMode')+tg('Thirdperson','thirdPerson')+'</div></div><div><div class="card"><div class="card-t">Radar</div>'+tg('Enable','radarEnabled')+tg('Facing','radarFacing')+tg('Dead X','radarDeadX')+tg('Grenades','radarGrenades')+tg('Bomb','radarBomb')+tg('Names','radarNames')+sec('Corner')+pl('rcP','radarCorner',['TR','TL','BR','BL'])+sd('radarRange')+sd('radarSize')+sd('radarDotSize')+sd('radarBgOpacity')+'</div><div class="card" style="margin-top:12px"><div class="card-t">HUD</div>'+tg('Spectators','specListEnabled')+tg('Spec Alert','specAlert')+tg('Velocity','velEnabled')+tg('Speed Graph','velGraph')+tg('Watermark','watermarkEnabled')+tg('WM Ping','wmShowPing')+tg('WM Specs','wmShowSpec')+tg('WM Clock','wmClock')+sec('WM Corner')+pl('wmcP','wmCorner',['TL','TR'])+'</div><div class="card" style="margin-top:12px"><div class="card-t">Hit Marker</div>'+tg('Enable','hitIndicator')+tg('Dmg Numbers','hitDmgNumber')+tg('Kill Marker','hitKillInd')+tg('HS Marker','hitHsInd')+sd('hitFadeDuration')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Crosshair</div>'+tg('Enable','xhairEnabled')+tg('Dot','xhairDot')+tg('Outline','xhairOutline')+sd('xhairSize')+sd('xhairGap')+sd('xhairThick')+sd('xhairOpacity')+cw('xhair')+'</div><div class="card" style="margin-top:12px"><div class="card-t">Key Display</div>'+tg('Enable','keyDisplayEnabled')+'</div></div></div>'},
+{n:'Config',html:'<div class="grid"><div class="card"><div class="card-t">Presets</div><div class="btns"><button class="btn btn-g" onclick="sv()">Save</button><button class="btn btn-b" onclick="ld()">Load</button><button class="btn btn-r" onclick="rs()">Reset</button></div></div><div class="card"><div class="card-t">Keybinds</div><div class="row"><span class="row-l">Aim</span><button class="kb" data-bind="aimKey" onclick="skb(\'aimKey\')">-</button></div><div class="row"><span class="row-l">Trigger</span><button class="kb" data-bind="trigKey" onclick="skb(\'trigKey\')">-</button></div><div class="row"><span class="row-l">Bhop</span><button class="kb" data-bind="bhopKey" onclick="skb(\'bhopKey\')">-</button></div><div class="row"><span class="row-l">Exit</span><span style="font-family:Space Mono;font-size:9px;color:var(--tx3)">END</span></div></div></div>'}
+];
+
+function buildTabs(){var th='',ch='';for(var i=0;i<TABS.length;i++){th+='<button class="tab'+(i===0?' a':'')+'" onclick="st('+i+')">'+TABS[i].n+'</button>';ch+='<div class="pnl'+(i===0?' a':'')+'" id="p'+i+'">'+TABS[i].html+'</div>'}document.getElementById('tabs').innerHTML=th;document.getElementById('content').innerHTML=ch;wrapCards()}
+function tc(el){el.parentElement.classList.toggle('collapsed')}
+function wrapCards(){var cards=document.querySelectorAll('.card');for(var i=0;i<cards.length;i++){var t=cards[i].querySelector('.card-t');if(!t||t.getAttribute('data-w'))continue;t.setAttribute('data-w','1');t.setAttribute('onclick','tc(this)');var body=document.createElement('div');body.className='card-body';while(t.nextSibling)body.appendChild(t.nextSibling);cards[i].appendChild(body)}}
+function st(i){var t=document.querySelectorAll('.tab'),p=document.querySelectorAll('.pnl');for(var j=0;j<t.length;j++){t[j].classList.toggle('a',j===i);p[j].classList.toggle('a',j===i)}}
+function sp(k,v){S[k]=v;upP();sy()}
+function upP(){var m={aimHitbox:'hbP',aimPriority:'prP',aimMode:'amP',espBoxStyle:'bsP',espHealthPos:'hpP',espSnapOrigin:'soP',radarCorner:'rcP',aimHitbox1:'hb1P',aimHitbox2:'hb2P',aimHitbox3:'hb3P',wmCorner:'wmcP'};for(var k in m){var el=document.getElementById(m[k]);if(!el)continue;var ps=el.querySelectorAll('.pill');for(var i=0;i<ps.length;i++)ps[i].classList.toggle('a',i===(S[k]||0))}}
+function ukb(){var b=document.querySelectorAll('[data-bind]');for(var i=0;i<b.length;i++){var k=b[i].getAttribute('data-bind');b[i].classList.remove('w');b[i].textContent=S[k+'Name']||'?'}}
+function skb(t){
+  wsSend({type:'keybind_start',target:t});
+  var b=document.querySelectorAll('[data-bind="'+t+'"]');
+  for(var i=0;i<b.length;i++){b[i].textContent='...';b[i].classList.add('w')}
+  toast('Press key in-game...','inf');
+}
+function md(){dirty=true;if(dT)clearTimeout(dT);dT=setTimeout(function(){dirty=false},3000)}
+
+// ========== SYNC: send settings to cheat via WS ==========
+function sy(){
+  md();
+  for(var i=0;i<TK.length;i++){var e=document.getElementById(TK[i]);if(e)S[TK[i]]=e.checked}
+  S.menuOpen=true;
+  // Send to cheat via WebSocket
+  wsSend({type:'settings',data:S});
+  updateStatus();uSw();
+}
+function aui(){for(var i=0;i<TK.length;i++){var e=document.getElementById(TK[i]);if(e)e.checked=!!S[TK[i]]}upP();ukb();for(var k in SLD)ms(k);uSw();updateStatus()}
+function sui(){for(var i=0;i<TK.length;i++){var e=document.getElementById(TK[i]);if(e)e.checked=!!S[TK[i]]}upP();ukb();for(var k in SLD)usld(k);uSw();updateStatus()}
+function sv(){sy();fetch('/api/menu/config',{method:'POST',headers:{'Content-Type':'application/json','x-license-key':licenseKey},body:JSON.stringify({config:S})}).then(function(){toast('Config saved to cloud','ok')}).catch(function(){toast('Save failed','inf')})}
+function ld(){fetch('/api/menu/config',{headers:{'x-license-key':licenseKey}}).then(function(r){return r.json()}).then(function(d){if(d.config&&Object.keys(d.config).length>0){S=d.config;aui();wsSend({type:'settings',data:S});toast('Config loaded','inf')}else toast('No saved config','inf')}).catch(function(){toast('Load failed','inf')})}
+function rs(){S={};aui();wsSend({type:'settings',data:S});toast('Reset to defaults','inf')}
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+t+' v';setTimeout(function(){e.classList.remove('v')},2000)}
+
+// ========== SLIDERS ==========
+function fmt(v,d){return d?v.toFixed(d):''+Math.round(v)}
+function ms(key){var d=SLD[key];if(!d)return;var c=document.getElementById('s_'+key);if(!c)return;var lb=d[0],mn=d[1],mx=d[2],step=d[3],dec=d[4];var val=S[key];if(val===undefined)val=mn;c.innerHTML='<div class="sld-top"><span class="sld-lb">'+lb+'</span><span class="sld-val" id="'+key+'V">'+fmt(val,dec)+'</span></div><div class="sld-bar" id="'+key+'T"><div class="sld-fill" id="'+key+'F"></div><div class="sld-knob" id="'+key+'K"></div></div>';var tr=document.getElementById(key+'T'),fi=document.getElementById(key+'F'),kn=document.getElementById(key+'K'),ve=document.getElementById(key+'V');function u(v){var p=(v-mn)/(mx-mn)*100;fi.style.width=p+'%';kn.style.left=p+'%';ve.textContent=fmt(v,dec)}u(val);var dr=false;function mv(e){if(!dr)return;md();var r=tr.getBoundingClientRect();var p=(e.clientX-r.left)/r.width;if(p<0)p=0;if(p>1)p=1;var v=mn+p*(mx-mn);v=Math.round(v/step)*step;S[key]=v;u(v)}tr.onmousedown=function(e){dr=true;md();mv(e)};kn.onmousedown=function(e){e.stopPropagation();dr=true;md()};document.addEventListener('mousemove',mv);document.addEventListener('mouseup',function(){if(dr){dr=false;sy()}})}
+function usld(key){var d=SLD[key];if(!d)return;var fi=document.getElementById(key+'F'),kn=document.getElementById(key+'K'),ve=document.getElementById(key+'V');if(!fi)return;var mn=d[1],mx=d[2],dec=d[4],v=S[key];if(v===undefined)return;var p=(v-mn)/(mx-mn)*100;fi.style.width=p+'%';kn.style.left=p+'%';ve.textContent=fmt(v,dec)}
+
+// ========== COLOR PICKER ==========
+function initPicker(){
+  initDrag('cHT','cHK',function(p){cH=Math.round(p*360);if(cH>=360)cH=359});
+  initDrag('cST','cSK',function(p){cS=Math.round(p*100)});
+  initDrag('cLT','cLK',function(p){cL=Math.round(p*100)});
+}
+function hsl2rgb(h,s,l){s/=100;l/=100;var c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)]}
+function rgb2hsl(r,g,b){r/=255;g/=255;b/=255;var mx=Math.max(r,g,b),mn=Math.min(r,g,b),h=0,s=0,l=(mx+mn)/2;if(mx!==mn){var d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);if(mx===r)h=((g-b)/d+(g<b?6:0))*60;else if(mx===g)h=((b-r)/d+2)*60;else h=((r-g)/d+4)*60}return[Math.round(h),Math.round(s*100),Math.round(l*100)]}
+function r2h(r,g,b){return'#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1)}
+function h2r(h){h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255]}
+function gc(ck){var k=COLS[ck];return[S[k[0]]||0,S[k[1]]||0,S[k[2]]||0]}
+function sc2(ck,r,g,b){var k=COLS[ck];S[k[0]]=r;S[k[1]]=g;S[k[2]]=b}
+function uSw(){for(var ck in COLS){var el=document.getElementById('cpv_'+ck);if(el){var c=gc(ck);el.style.background=r2h(c[0],c[1],c[2])}}}
+function openCpk(ck){cpkTgt=ck;var c=gc(ck);var hsl=rgb2hsl(c[0],c[1],c[2]);cH=hsl[0];cS=hsl[1];cL=hsl[2];document.getElementById('cpkT').textContent=CN[ck]+' Color';uCpk();document.getElementById('cpkOv').classList.add('open');bPre()}
+function closeCpk(){document.getElementById('cpkOv').classList.remove('open')}
+function bPre(){var c=document.getElementById('cpkPr');var h='';for(var i=0;i<PRESETS.length;i++)h+='<div class="cpk-pc" style="background:'+PRESETS[i]+'" onclick="pPre('+i+')"></div>';c.innerHTML=h}
+function pPre(i){var rgb=h2r(PRESETS[i]);var hsl=rgb2hsl(rgb[0],rgb[1],rgb[2]);cH=hsl[0];cS=hsl[1];cL=hsl[2];uCpk()}
+function uCpk(){var rgb=hsl2rgb(cH,cS,cL);document.getElementById('cpkB').style.background=r2h(rgb[0],rgb[1],rgb[2]);document.getElementById('cHK').style.left=(cH/360*100)+'%';document.getElementById('cSK').style.left=cS+'%';document.getElementById('cLK').style.left=cL+'%';document.getElementById('cHV').textContent=cH;document.getElementById('cSV').textContent=cS;document.getElementById('cLV').textContent=cL;document.getElementById('cHex').value=r2h(rgb[0],rgb[1],rgb[2]);document.getElementById('cRGB').textContent=rgb[0]+','+rgb[1]+','+rgb[2];var g1=hsl2rgb(cH,0,cL),g2=hsl2rgb(cH,100,cL);document.getElementById('cST').style.background='linear-gradient(90deg,'+r2h(g1[0],g1[1],g1[2])+','+r2h(g2[0],g2[1],g2[2])+')';var m=hsl2rgb(cH,cS,50);document.getElementById('cLT').style.background='linear-gradient(90deg,#000,'+r2h(m[0],m[1],m[2])+',#fff)'}
+function hexIn(){var v=document.getElementById('cHex').value;if(v.length===7&&v[0]==='#'){var rgb=h2r(v);var hsl=rgb2hsl(rgb[0],rgb[1],rgb[2]);cH=hsl[0];cS=hsl[1];cL=hsl[2];uCpk()}}
+function applyCpk(){if(!cpkTgt)return;var rgb=hsl2rgb(cH,cS,cL);sc2(cpkTgt,rgb[0],rgb[1],rgb[2]);uSw();sy();closeCpk();toast(CN[cpkTgt]+' updated','ok')}
+function initDrag(tId,kId,fn){var tr=document.getElementById(tId),kn=document.getElementById(kId);var dr=false;function mv(e){if(!dr)return;var r=tr.getBoundingClientRect();var p=(e.clientX-r.left)/r.width;if(p<0)p=0;if(p>1)p=1;fn(p);uCpk()}tr.onmousedown=function(e){dr=true;mv(e)};kn.onmousedown=function(e){e.stopPropagation();dr=true};document.addEventListener('mousemove',mv);document.addEventListener('mouseup',function(){dr=false})}
+</script>
+</body></html>
