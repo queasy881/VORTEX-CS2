@@ -120,6 +120,7 @@ function showTab(name, el) {
   if (name === 'builds') loadBuilds();
   if (name === 'keys') loadKeys();
   if (name === 'logs') loadLogs();
+  if (name === 'store') loadStore();
 }
 
 // ===== ANIMATED COUNTER =====
@@ -358,6 +359,221 @@ async function purgeLogs() {
   try { await api('/api/admin/purge-logs', { method: 'POST' }); toast('Logs purged', 'ok'); loadLogs(); } catch (e) { toast('Failed', 'err'); }
 }
 
+// ===== STORE =====
+let storeCurrency = 'EUR';
+let pricingData = [], promosData = [];
+
+function setCur(c, el) {
+  storeCurrency = c;
+  document.querySelectorAll('#tab-store .dur-pills:first-of-type .dur-pill').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function fmtPrice(cents, cur) {
+  const sym = cur === 'EUR' ? '€' : cur === 'GBP' ? '£' : '$';
+  return sym + (cents / 100).toFixed(2);
+}
+
+function fmtDur(days) {
+  if (days >= 365) return days === 365 ? '1 year' : (days / 365).toFixed(0) + ' years';
+  if (days >= 30) return days === 30 ? '1 month' : (days / 30).toFixed(0) + ' months';
+  if (days >= 7) return days === 7 ? '1 week' : (days / 7).toFixed(0) + ' weeks';
+  return days === 1 ? '1 day' : days + ' days';
+}
+
+// Price input live preview
+document.addEventListener('input', e => {
+  if (e.target.id === 'tierPrice') {
+    const v = parseInt(e.target.value) || 0;
+    const sym = storeCurrency === 'EUR' ? '€' : storeCurrency === 'GBP' ? '£' : '$';
+    const h = document.getElementById('tierPriceHint');
+    if (h) h.textContent = `= ${sym}${(v / 100).toFixed(2)}`;
+  }
+});
+
+async function loadStore() {
+  try {
+    const [pr, pm] = await Promise.all([
+      api('/api/admin/pricing').then(r => r.json()),
+      api('/api/admin/promos').then(r => r.json())
+    ]);
+    pricingData = pr;
+    promosData = pm;
+    renderTiers();
+    renderPromos();
+  } catch (e) { toast('Failed to load store data', 'err'); }
+}
+
+function renderTiers() {
+  const el = document.getElementById('tiersList');
+  if (!pricingData.length) { el.innerHTML = '<div class="empty-state">No pricing tiers — add one above</div>'; return; }
+  el.innerHTML = '<div class="tiers-header"><span>Name</span><span>Duration</span><span>Price</span><span>Status</span><span>Actions</span></div>' +
+    pricingData.map(t => `<div class="tier-row ${t.is_active ? '' : 'inactive'}">
+      <span class="tier-name">${esc(t.name)}</span>
+      <span class="tier-dur">${fmtDur(t.duration_days)} <span class="tier-days">(${t.duration_days}d)</span></span>
+      <span class="tier-price">${fmtPrice(t.price_cents, t.currency)}</span>
+      <span><span class="tier-status ${t.is_active ? 'on' : 'off'}">${t.is_active ? 'Active' : 'Hidden'}</span></span>
+      <span class="tier-actions">
+        <button class="btn-micro" onclick="toggleTier(${t.id},${!t.is_active})" title="${t.is_active ? 'Hide' : 'Show'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">${t.is_active
+            ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+            : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+          }</svg>
+        </button>
+        <button class="btn-micro edit" onclick="editTier(${t.id})" title="Edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="btn-micro del" onclick="deleteTier(${t.id})" title="Delete">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </span>
+    </div>`).join('');
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function createTier() {
+  const name = document.getElementById('tierName').value.trim();
+  const days = parseInt(document.getElementById('tierDays').value);
+  const price = parseInt(document.getElementById('tierPrice').value);
+  const sort = parseInt(document.getElementById('tierSort').value) || 0;
+  if (!name) { toast('Name required', 'err'); return; }
+  if (!days || days < 1) { toast('Duration must be ≥1', 'err'); return; }
+  if (isNaN(price) || price < 0) { toast('Price must be ≥0', 'err'); return; }
+  try {
+    const r = await api('/api/admin/pricing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, duration_days: days, price_cents: price, currency: storeCurrency, sort_order: sort })
+    });
+    if (r.ok) {
+      toast(`Tier "${name}" created`, 'ok');
+      document.getElementById('tierName').value = '';
+      loadStore();
+    } else { const d = await r.json(); toast(d.error || 'Failed', 'err'); }
+  } catch (e) { toast('Failed to create tier', 'err'); }
+}
+
+async function toggleTier(id, active) {
+  try {
+    await api(`/api/admin/pricing/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: active }) });
+    toast(active ? 'Tier shown' : 'Tier hidden', 'ok');
+    loadStore();
+  } catch (e) { toast('Failed', 'err'); }
+}
+
+async function editTier(id) {
+  const t = pricingData.find(x => x.id === id);
+  if (!t) return;
+  const name = prompt('Name:', t.name); if (name === null) return;
+  const days = prompt('Duration (days):', t.duration_days); if (days === null) return;
+  const cents = prompt(`Price (cents, current: ${t.price_cents}):`, t.price_cents); if (cents === null) return;
+  try {
+    await api(`/api/admin/pricing/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, duration_days: parseInt(days), price_cents: parseInt(cents) })
+    });
+    toast('Tier updated', 'ok');
+    loadStore();
+  } catch (e) { toast('Failed', 'err'); }
+}
+
+async function deleteTier(id) {
+  if (!confirm('Delete this pricing tier?')) return;
+  try {
+    await api(`/api/admin/pricing/${id}`, { method: 'DELETE' });
+    toast('Tier deleted', 'ok');
+    loadStore();
+  } catch (e) { toast('Failed', 'err'); }
+}
+
+// ===== PROMO CODES =====
+function renderPromos() {
+  const el = document.getElementById('promosList');
+  if (!promosData.length) { el.innerHTML = '<div class="empty-state">No promo codes — create one above</div>'; return; }
+  el.innerHTML = '<div class="promos-header"><span>Code</span><span>Discount</span><span>Uses</span><span>Expires</span><span>Status</span><span>Actions</span></div>' +
+    promosData.map(p => {
+      const expired = p.expires_at && new Date() > new Date(p.expires_at);
+      const maxed = p.max_uses > 0 && p.times_used >= p.max_uses;
+      const statusText = !p.is_active ? 'Disabled' : expired ? 'Expired' : maxed ? 'Maxed' : 'Active';
+      const statusClass = !p.is_active ? 'off' : expired || maxed ? 'warn' : 'on';
+      return `<div class="promo-row ${!p.is_active ? 'inactive' : ''}">
+        <span class="promo-code">${esc(p.code)}</span>
+        <span class="promo-discount">-${p.discount_percent}%</span>
+        <span class="promo-uses">${p.times_used}${p.max_uses > 0 ? '/' + p.max_uses : '/∞'}</span>
+        <span class="promo-expires">${p.expires_at ? new Date(p.expires_at).toLocaleDateString() : '—'}</span>
+        <span><span class="tier-status ${statusClass}">${statusText}</span></span>
+        <span class="tier-actions">
+          <button class="btn-micro" onclick="togglePromo(${p.id},${!p.is_active})" title="${p.is_active ? 'Disable' : 'Enable'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">${p.is_active
+              ? '<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>'
+              : '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'
+            }</svg>
+          </button>
+          <button class="btn-micro edit" onclick="editPromo(${p.id})" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-micro del" onclick="deletePromo(${p.id})" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </span>
+      </div>`;
+    }).join('');
+}
+
+async function createPromo() {
+  const code = document.getElementById('promoCode').value.trim().toUpperCase();
+  const discount = parseInt(document.getElementById('promoDiscount').value);
+  const maxUses = parseInt(document.getElementById('promoMaxUses').value) || 0;
+  const expiresRaw = document.getElementById('promoExpires').value;
+  if (!code) { toast('Code required', 'err'); return; }
+  if (!discount || discount < 1 || discount > 100) { toast('Discount 1-100%', 'err'); return; }
+  try {
+    const body = { code, discount_percent: discount, max_uses: maxUses };
+    if (expiresRaw) body.expires_at = new Date(expiresRaw + 'T23:59:59Z').toISOString();
+    const r = await api('/api/admin/promos', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (r.ok) {
+      toast(`Promo "${code}" created — ${discount}% off`, 'ok');
+      document.getElementById('promoCode').value = '';
+      loadStore();
+    } else { const d = await r.json(); toast(d.error || 'Failed', 'err'); }
+  } catch (e) { toast('Failed', 'err'); }
+}
+
+async function togglePromo(id, active) {
+  try {
+    await api(`/api/admin/promos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: active }) });
+    toast(active ? 'Promo enabled' : 'Promo disabled', 'ok');
+    loadStore();
+  } catch (e) { toast('Failed', 'err'); }
+}
+
+async function editPromo(id) {
+  const p = promosData.find(x => x.id === id);
+  if (!p) return;
+  const disc = prompt('Discount %:', p.discount_percent); if (disc === null) return;
+  const max = prompt('Max uses (0=unlimited):', p.max_uses); if (max === null) return;
+  try {
+    await api(`/api/admin/promos/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discount_percent: parseInt(disc), max_uses: parseInt(max) })
+    });
+    toast('Promo updated', 'ok');
+    loadStore();
+  } catch (e) { toast('Failed', 'err'); }
+}
+
+async function deletePromo(id) {
+  if (!confirm('Delete this promo code?')) return;
+  try {
+    await api(`/api/admin/promos/${id}`, { method: 'DELETE' });
+    toast('Promo deleted', 'ok');
+    loadStore();
+  } catch (e) { toast('Failed', 'err'); }
+}
+
 // ===== KEYBOARD SHORTCUTS =====
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -366,7 +582,8 @@ document.addEventListener('keydown', e => {
   if (e.key === '3') showTab('builds', document.querySelector('[data-tab="builds"]'));
   if (e.key === '4') showTab('keys', document.querySelector('[data-tab="keys"]'));
   if (e.key === '5') showTab('logs', document.querySelector('[data-tab="logs"]'));
-  if (e.key === '6') showTab('settings', document.querySelector('[data-tab="settings"]'));
+  if (e.key === '6') showTab('store', document.querySelector('[data-tab="store"]'));
+  if (e.key === '7') showTab('settings', document.querySelector('[data-tab="settings"]'));
 });
 
 // ===== INIT =====

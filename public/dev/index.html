@@ -64,6 +64,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         <span>Logs</span>
       </button>
+      <button class="sb-btn" onclick="showTab('store',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 7v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-3-5z"/><line x1="3" y1="7" x2="21" y2="7"/><path d="M16 11a4 4 0 0 1-8 0"/></svg>
+        <span>Store</span>
+      </button>
       <button class="sb-btn" onclick="showTab('settings',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>Settings</span>
@@ -175,6 +179,50 @@
       <div id="logsList" class="logs-list"><div class="empty-state">No logs yet</div></div>
     </section>
 
+    <!-- Store -->
+    <section id="tab-store" class="tab">
+      <div class="tab-head"><div><h1 class="tab-title">Store</h1><p class="tab-sub">Pricing tiers & promo codes</p></div>
+        <button class="btn-ghost" onclick="loadStore()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+
+      <!-- Pricing -->
+      <div class="store-section">
+        <h2 class="section-title">Pricing Tiers</h2>
+        <p class="section-hint">Set prices and durations for the website. Users see active tiers only.</p>
+        <div class="store-create glass">
+          <div class="sc-grid">
+            <div class="uc-section"><label class="uc-label">Name</label><input type="text" class="uc-input" id="tierName" placeholder="e.g. Day Pass"></div>
+            <div class="uc-section"><label class="uc-label">Duration (days)</label><input type="number" class="uc-input" id="tierDays" value="1" min="1"></div>
+            <div class="uc-section"><label class="uc-label">Price (cents)</label><input type="number" class="uc-input" id="tierPrice" value="100" min="0">
+              <span class="input-hint" id="tierPriceHint">= €1.00</span></div>
+            <div class="uc-section"><label class="uc-label">Currency</label>
+              <div class="dur-pills"><button class="dur-pill active" onclick="setCur('EUR',this)">EUR</button><button class="dur-pill" onclick="setCur('USD',this)">USD</button><button class="dur-pill" onclick="setCur('GBP',this)">GBP</button></div>
+            </div>
+            <div class="uc-section"><label class="uc-label">Sort Order</label><input type="number" class="uc-input" id="tierSort" value="0" min="0"></div>
+          </div>
+          <button class="btn-primary" onclick="createTier()" style="margin-top:12px"><span>Add Tier</span></button>
+        </div>
+        <div id="tiersList" class="tiers-list"></div>
+      </div>
+
+      <!-- Promos -->
+      <div class="store-section" style="margin-top:40px">
+        <h2 class="section-title">Promo Codes</h2>
+        <p class="section-hint">Create discount codes for marketing campaigns.</p>
+        <div class="store-create glass">
+          <div class="sc-grid">
+            <div class="uc-section"><label class="uc-label">Code</label><input type="text" class="uc-input" id="promoCode" placeholder="e.g. LAUNCH50" style="text-transform:uppercase"></div>
+            <div class="uc-section"><label class="uc-label">Discount %</label><input type="number" class="uc-input" id="promoDiscount" value="10" min="1" max="100"></div>
+            <div class="uc-section"><label class="uc-label">Max Uses</label><input type="number" class="uc-input" id="promoMaxUses" value="0" min="0">
+              <span class="input-hint">0 = unlimited</span></div>
+            <div class="uc-section"><label class="uc-label">Expires</label><input type="date" class="uc-input" id="promoExpires"></div>
+          </div>
+          <button class="btn-primary" onclick="createPromo()" style="margin-top:12px"><span>Create Code</span></button>
+        </div>
+        <div id="promosList" class="promos-list"></div>
+      </div>
+    </section>
+
     <!-- Settings -->
     <section id="tab-settings" class="tab">
       <div class="tab-head"><div><h1 class="tab-title">Settings</h1><p class="tab-sub">System configuration</p></div></div>
@@ -186,6 +234,8 @@
         </div>
         <div class="glass"><h3 class="section-title">API Reference</h3>
           <div class="api-list">
+            <div class="api-row"><span class="api-m get">GET</span><code>/api/pricing</code></div>
+            <div class="api-row"><span class="api-m post">POST</span><code>/api/promo/validate</code></div>
             <div class="api-row"><span class="api-m post">POST</span><code>/api/auth/validate</code></div>
             <div class="api-row"><span class="api-m get">GET</span><code>/api/download/internal</code></div>
             <div class="api-row"><span class="api-m get">GET</span><code>/api/download/external</code></div>

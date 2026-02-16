@@ -83,6 +83,26 @@ async function initDB() {
       config_json TEXT DEFAULT '{}',
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS pricing (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      duration_days INTEGER NOT NULL,
+      price_cents INTEGER NOT NULL,
+      currency VARCHAR(10) DEFAULT 'EUR',
+      is_active BOOLEAN DEFAULT true,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS promo_codes (
+      id SERIAL PRIMARY KEY,
+      code VARCHAR(50) UNIQUE NOT NULL,
+      discount_percent INTEGER NOT NULL,
+      max_uses INTEGER DEFAULT 0,
+      times_used INTEGER DEFAULT 0,
+      expires_at TIMESTAMP DEFAULT NULL,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
     console.log('[+] Tables ready');
   } catch (err) {
     console.error('[X] Table creation failed:', err.message);
@@ -538,7 +558,160 @@ app.get('/menu', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'menu', 'index.html'));
 });
 
+// ========== PRICING ==========
+
+// Admin: list pricing tiers
+app.get('/api/admin/pricing', authMiddleware, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM pricing ORDER BY sort_order ASC, id ASC');
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to load pricing' }); }
+});
+
+// Admin: create pricing tier
+app.post('/api/admin/pricing', authMiddleware, async (req, res) => {
+  try {
+    let { name, duration_days, price_cents, currency, sort_order } = req.body;
+    if (!name || !duration_days || price_cents == null) return res.status(400).json({ error: 'name, duration_days, price_cents required' });
+    duration_days = parseInt(duration_days);
+    price_cents = parseInt(price_cents);
+    sort_order = parseInt(sort_order) || 0;
+    currency = (currency || 'EUR').toUpperCase();
+    if (duration_days < 1 || price_cents < 0) return res.status(400).json({ error: 'Invalid values' });
+    const r = await pool.query(
+      'INSERT INTO pricing (name, duration_days, price_cents, currency, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [name, duration_days, price_cents, currency, sort_order]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create tier' }); }
+});
+
+// Admin: update pricing tier
+app.put('/api/admin/pricing/:id', authMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    let { name, duration_days, price_cents, currency, is_active, sort_order } = req.body;
+    const fields = [], vals = [];
+    let n = 1;
+    if (name != null) { fields.push(`name=$${n++}`); vals.push(name); }
+    if (duration_days != null) { fields.push(`duration_days=$${n++}`); vals.push(parseInt(duration_days)); }
+    if (price_cents != null) { fields.push(`price_cents=$${n++}`); vals.push(parseInt(price_cents)); }
+    if (currency != null) { fields.push(`currency=$${n++}`); vals.push(currency.toUpperCase()); }
+    if (is_active != null) { fields.push(`is_active=$${n++}`); vals.push(!!is_active); }
+    if (sort_order != null) { fields.push(`sort_order=$${n++}`); vals.push(parseInt(sort_order)); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    vals.push(id);
+    const r = await pool.query(`UPDATE pricing SET ${fields.join(',')} WHERE id=$${n} RETURNING *`, vals);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update tier' }); }
+});
+
+// Admin: delete pricing tier
+app.delete('/api/admin/pricing/:id', authMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await pool.query('DELETE FROM pricing WHERE id=$1', [id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete tier' }); }
+});
+
+// Public: get active pricing (for website)
+app.get('/api/pricing', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, name, duration_days, price_cents, currency FROM pricing WHERE is_active=true ORDER BY sort_order ASC, id ASC');
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to load pricing' }); }
+});
+
+// ========== PROMO CODES ==========
+
+// Admin: list promo codes
+app.get('/api/admin/promos', authMiddleware, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC');
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to load promos' }); }
+});
+
+// Admin: create promo code
+app.post('/api/admin/promos', authMiddleware, async (req, res) => {
+  try {
+    let { code, discount_percent, max_uses, expires_at } = req.body;
+    if (!code || !discount_percent) return res.status(400).json({ error: 'code and discount_percent required' });
+    code = code.toUpperCase().trim().replace(/[^A-Z0-9_-]/g, '');
+    discount_percent = parseInt(discount_percent);
+    max_uses = parseInt(max_uses) || 0;
+    if (discount_percent < 1 || discount_percent > 100) return res.status(400).json({ error: 'Discount must be 1-100%' });
+    if (code.length < 2 || code.length > 50) return res.status(400).json({ error: 'Code must be 2-50 chars' });
+    const r = await pool.query(
+      'INSERT INTO promo_codes (code, discount_percent, max_uses, expires_at) VALUES ($1,$2,$3,$4) RETURNING *',
+      [code, discount_percent, max_uses, expires_at || null]
+    );
+    console.log(`[+] Promo created: ${code} (${discount_percent}% off) by ${req.admin.username}`);
+    res.json(r.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Promo code already exists' });
+    res.status(500).json({ error: 'Failed to create promo' });
+  }
+});
+
+// Admin: update promo code
+app.put('/api/admin/promos/:id', authMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    let { code, discount_percent, max_uses, expires_at, is_active } = req.body;
+    const fields = [], vals = [];
+    let n = 1;
+    if (code != null) { fields.push(`code=$${n++}`); vals.push(code.toUpperCase().trim()); }
+    if (discount_percent != null) { fields.push(`discount_percent=$${n++}`); vals.push(parseInt(discount_percent)); }
+    if (max_uses != null) { fields.push(`max_uses=$${n++}`); vals.push(parseInt(max_uses)); }
+    if (expires_at !== undefined) { fields.push(`expires_at=$${n++}`); vals.push(expires_at || null); }
+    if (is_active != null) { fields.push(`is_active=$${n++}`); vals.push(!!is_active); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields' });
+    vals.push(id);
+    const r = await pool.query(`UPDATE promo_codes SET ${fields.join(',')} WHERE id=$${n} RETURNING *`, vals);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update' }); }
+});
+
+// Admin: delete promo code
+app.delete('/api/admin/promos/:id', authMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM promo_codes WHERE id=$1', [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete' }); }
+});
+
+// Public: validate promo code (website checkout would call this)
+app.post('/api/promo/validate', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code required' });
+    const r = await pool.query('SELECT * FROM promo_codes WHERE code=$1', [code.toUpperCase().trim()]);
+    if (r.rows.length === 0) return res.status(404).json({ valid: false, error: 'Invalid promo code' });
+    const p = r.rows[0];
+    if (!p.is_active) return res.status(400).json({ valid: false, error: 'Promo is inactive' });
+    if (p.max_uses > 0 && p.times_used >= p.max_uses) return res.status(400).json({ valid: false, error: 'Promo code fully redeemed' });
+    if (p.expires_at && new Date() > new Date(p.expires_at)) return res.status(400).json({ valid: false, error: 'Promo code expired' });
+    res.json({ valid: true, discount_percent: p.discount_percent, code: p.code });
+  } catch (err) { res.status(500).json({ error: 'Validation failed' }); }
+});
+
+// Public: redeem promo code (increment usage after purchase)
+app.post('/api/promo/redeem', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code required' });
+    const r = await pool.query('UPDATE promo_codes SET times_used = times_used + 1 WHERE code=$1 AND is_active=true RETURNING *', [code.toUpperCase().trim()]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Invalid code' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
 // ========== STATIC ==========
+app.use(express.static(path.join(__dirname, 'public'))); // main website at /
 app.use('/dev', express.static(path.join(__dirname, 'public', 'dev')));
 app.use('/menu/assets', express.static(path.join(__dirname, 'public', 'menu')));
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

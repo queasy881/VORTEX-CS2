@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUIST — CS2 External</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-brand">QUIST<span>.world</span></a>
+  <div class="nav-links" id="navLinks">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#about">About</a>
+    <a href="tos.html">Terms</a>
+    <a href="#pricing" class="nav-cta">GET ACCESS</a>
+  </div>
+  <button class="hamburger" onclick="toggleNav()">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-badge"><span class="dot"></span> UNDETECTED — 2026</div>
+  <h1 class="hero-title">
+    <span class="accent">QUIST</span><br>
+    <span class="outline">EXTERNAL</span>
+  </h1>
+  <p class="hero-sub">
+    Hardware-accelerated CS2 external overlay. Bone-scanning aimbot, 
+    full ESP, Direct2D menu — 120+ settings, all outside the game process.
+  </p>
+  <div class="hero-actions">
+    <a href="#pricing" class="btn-primary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Get a Key
+    </a>
+    <a href="#features" class="btn-secondary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      Learn More
+    </a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-val">120<span class="red">+</span></div><div class="stat-label">Settings</div></div>
+    <div class="stat"><div class="stat-val">0</div><div class="stat-label">Detections</div></div>
+    <div class="stat"><div class="stat-val">&lt;1<span class="red">ms</span></div><div class="stat-label">Latency</div></div>
+    <div class="stat"><div class="stat-val">D2D</div><div class="stat-label">Rendering</div></div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-label reveal">// FEATURES</div>
+  <h2 class="section-title reveal">Everything you need.</h2>
+  <p class="section-desc reveal">
+    Built from scratch for CS2's Source 2 engine. No frameworks, no bloat — 
+    raw C++ with Direct2D rendering.
+  </p>
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon">&#8853;</div>
+      <h3>Bone-Scanning Aimbot</h3>
+      <p>Scans 15 key bones per player — if any limb enters your FOV circle, it locks. Smooth or flick, multi-hitbox fallback.</p>
+      <span class="feature-tag tag-ext">EXTERNAL</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">&#9672;</div>
+      <h3>Full ESP Suite</h3>
+      <p>Box, skeleton, health, name, weapon, distance, snaplines, head dot, grenades, bomb info. Everything individually styled.</p>
+      <span class="feature-tag tag-ext">EXTERNAL</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">&#11041;</div>
+      <h3>Direct2D Menu</h3>
+      <p>Transparent overlay with DirectComposition. 7 accent themes, scrollable cards, color pickers with hue bar and presets.</p>
+      <span class="feature-tag tag-safe">HWND SAFE</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">&#10033;</div>
+      <h3>Triggerbot</h3>
+      <p>Head-only mode with real bone intersection check. Configurable delay randomization, burst count, auto-stop on fire.</p>
+      <span class="feature-tag tag-ext">EXTERNAL</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">&#9673;</div>
+      <h3>Config System</h3>
+      <p>Multi-config browser — save, load, create, delete named profiles. Competitive preset with one click. Toast notifications.</p>
+      <span class="feature-tag tag-safe">LOCAL SAVE</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">&#10687;</div>
+      <h3>Radar &amp; HUD</h3>
+      <p>Custom radar with facing arrows, grenades, bomb. Spectator list, velocity graph, styled watermark, custom crosshair.</p>
+      <span class="feature-tag tag-ext">EXTERNAL</span>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING — loaded from API -->
+<section id="pricing">
+  <div class="section-label reveal">// PRICING</div>
+  <h2 class="section-title reveal">Get your key.</h2>
+  <p class="section-desc reveal" style="margin-left:auto;margin-right:auto;text-align:center;">
+    All keys include full access to every feature. Prices set by the dev team — check back for deals.
+  </p>
+  <div class="pricing-grid" id="pricingGrid">
+    <div class="pricing-loading">Loading prices...</div>
+  </div>
+  <div class="promo-bar reveal">
+    <input type="text" class="promo-input" id="promoInput" placeholder="Promo code" spellcheck="false" autocomplete="off">
+    <button class="promo-apply" onclick="applyPromo()">Apply</button>
+  </div>
+  <div class="promo-msg" id="promoMsg"></div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="about-content">
+    <div class="section-label reveal">// ABOUT</div>
+    <h2 class="section-title reveal">Built by players,<br>for players.</h2>
+    <p class="reveal">
+      QUIST is a clean external overlay — no kernel drivers, no injected DLLs, no 
+      third-party frameworks. Everything built from scratch in C++ with the Windows SDK.
+    </p>
+    <p class="reveal">
+      ReadProcessMemory for game data, Direct2D for rendering, DirectComposition 
+      for the transparent menu. No kernel modules, no syscall hooks. External only.
+    </p>
+    <p class="reveal">
+      Offsets update within hours of every CS2 patch. The dev portal tracks keys, 
+      pushes builds, and manages pricing — all on our own infrastructure.
+    </p>
+  </div>
+  <div class="about-grid reveal">
+    <div class="about-card"><div class="about-val">100%</div><div class="about-label">External</div></div>
+    <div class="about-card"><div class="about-val">C++</div><div class="about-label">Native</div></div>
+    <div class="about-card"><div class="about-val">D2D</div><div class="about-label">HW Rendered</div></div>
+    <div class="about-card"><div class="about-val">0</div><div class="about-label">Drivers</div></div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">QUIST</div>
+  <div class="footer-links">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#about">About</a>
+    <a href="tos.html">Terms</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 QUIST. All rights reserved.</div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
