@@ -1,12 +1,12 @@
 /* ================================================================
-   QUIST.WORLD — app.js
+   VORTEX.WORLD — app.js
    Interactive starfield, scroll reveal, dynamic pricing, promo codes
    ================================================================ */
 
 // ── CONFIG ──
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? '' // same origin in dev
-  : 'https://quist.world'; // production
+  : ''; // TODO: set to https://your-domain.com when domain is ready
 
 // ================================================================
 //  STARFIELD — particles that connect with lines near the cursor
