@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek Code — AI Coding Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07070d;
+            --card: #0f0f18;
+            --border: #1a1a2e;
+            --text: #c9d1d9;
+            --dim: #5a6070;
+            --bright: #eceff4;
+            --accent: #7eb8f7;
+            --accent2: #82dab0;
+            --glow: rgba(126,184,247,0.08);
+        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+
+        /* grid bg */
+        body::before{content:'';position:fixed;inset:0;
+            background:linear-gradient(rgba(126,184,247,.025) 1px,transparent 1px),
+                        linear-gradient(90deg,rgba(126,184,247,.025) 1px,transparent 1px);
+            background-size:64px 64px;pointer-events:none;z-index:0}
+
+        .page{position:relative;z-index:1}
+
+        /* glow blobs */
+        .blob{position:fixed;border-radius:50%;filter:blur(140px);pointer-events:none;z-index:0}
+        .blob.a{width:700px;height:700px;top:-300px;right:-200px;background:radial-gradient(circle,rgba(126,184,247,.15),transparent 70%)}
+        .blob.b{width:500px;height:500px;bottom:-200px;left:-150px;background:radial-gradient(circle,rgba(130,218,176,.1),transparent 70%)}
+
+        /* nav */
+        nav{max-width:1080px;margin:0 auto;padding:28px 24px;display:flex;justify-content:space-between;align-items:center}
+        .logo{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.15rem;color:var(--bright);text-decoration:none;display:flex;align-items:center;gap:10px}
+        .logo-box{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:7px;display:grid;place-items:center;font-size:14px;color:#07070d;font-weight:700}
+        .nav-links{display:flex;gap:28px}
+        .nav-links a{color:var(--dim);text-decoration:none;font-size:.9rem;transition:color .2s}
+        .nav-links a:hover{color:var(--text)}
+
+        /* hero */
+        .hero{max-width:1080px;margin:0 auto;padding:100px 24px 60px;text-align:center}
+        .pill{display:inline-flex;align-items:center;gap:8px;padding:5px 16px;background:var(--glow);border:1px solid rgba(126,184,247,.15);border-radius:50px;font-size:.78rem;color:var(--accent);font-weight:500;margin-bottom:30px}
+        .pill .dot{width:6px;height:6px;background:var(--accent2);border-radius:50%;animation:pulse 2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+        h1{font-size:clamp(2.4rem,6vw,4rem);font-weight:700;color:var(--bright);line-height:1.1;margin-bottom:20px;letter-spacing:-.03em}
+        h1 span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .subtitle{font-size:1.15rem;color:var(--dim);max-width:560px;margin:0 auto 40px;line-height:1.6;font-weight:300}
+
+        /* download area */
+        .dl-row{display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+        .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 32px;border-radius:10px;font-size:1rem;font-weight:600;text-decoration:none;transition:all .25s;cursor:pointer;border:none;font-family:inherit}
+        .btn-primary{background:linear-gradient(135deg,var(--accent),#6aa3e8);color:#07070d}
+        .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(126,184,247,.25)}
+        .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+        .btn-ghost:hover{border-color:var(--dim);background:var(--card)}
+        .dl-meta{font-size:.8rem;color:var(--dim)}
+
+        /* terminal preview */
+        .terminal{max-width:720px;margin:60px auto 0;background:#0c0c14;border:1px solid var(--border);border-radius:14px;overflow:hidden;text-align:left;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+        .term-bar{display:flex;align-items:center;gap:8px;padding:14px 18px;background:#0e0e17;border-bottom:1px solid var(--border)}
+        .term-dot{width:11px;height:11px;border-radius:50%}
+        .term-dot.r{background:#f5575a}.term-dot.y{background:#f5c051}.term-dot.g{background:#4fd17c}
+        .term-title{margin-left:12px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim)}
+        .term-body{padding:20px;font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.8}
+        .term-body .g{color:var(--accent2)}.term-body .b{color:var(--accent)}.term-body .y{color:#f5c051}.term-body .d{color:var(--dim)}.term-body .w{color:var(--bright)}
+
+        /* features */
+        .features{max-width:1080px;margin:0 auto;padding:100px 24px 80px}
+        .features h2{text-align:center;font-size:2rem;color:var(--bright);margin-bottom:12px}
+        .features .sub{text-align:center;color:var(--dim);margin-bottom:50px;font-size:1rem}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;transition:all .3s}
+        .card:hover{border-color:rgba(126,184,247,.2);transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+        .card-icon{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;font-size:20px;margin-bottom:16px}
+        .card h3{font-size:1.05rem;color:var(--bright);margin-bottom:8px}
+        .card p{font-size:.88rem;color:var(--dim);line-height:1.6}
+
+        /* how it works */
+        .how{max-width:1080px;margin:0 auto;padding:60px 24px 100px}
+        .how h2{text-align:center;font-size:2rem;color:var(--bright);margin-bottom:50px}
+        .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;counter-reset:step}
+        .step{text-align:center;counter-increment:step}
+        .step::before{content:counter(step);display:flex;width:48px;height:48px;margin:0 auto 16px;align-items:center;justify-content:center;border-radius:50%;background:var(--glow);border:1px solid rgba(126,184,247,.2);color:var(--accent);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.1rem}
+        .step h3{font-size:.95rem;color:var(--bright);margin-bottom:6px}
+        .step p{font-size:.82rem;color:var(--dim);line-height:1.5}
+
+        /* footer */
+        footer{border-top:1px solid var(--border);padding:32px 24px;text-align:center}
+        footer p{font-size:.8rem;color:var(--dim)}
+        footer a{color:var(--accent);text-decoration:none}
+
+        /* flash messages */
+        .flash{max-width:600px;margin:20px auto;padding:12px 20px;border-radius:8px;font-size:.9rem;text-align:center}
+        .flash.error{background:rgba(243,139,168,.1);border:1px solid rgba(243,139,168,.2);color:#f38ba8}
+        .flash.success{background:rgba(166,227,161,.1);border:1px solid rgba(166,227,161,.2);color:#a6e3a1}
+    </style>
+</head>
+<body>
+<div class="blob a"></div>
+<div class="blob b"></div>
+<div class="page">
+
+    <nav>
+        <a class="logo" href="/"><div class="logo-box">▸</div>deepseek-code</a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how">Setup</a>
+            <a href="https://github.com/YOUR_USERNAME/deepseek-code" target="_blank">GitHub</a>
+        </div>
+    </nav>
+
+    <!-- flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for cat, msg in messages %}
+    <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="pill"><span class="dot"></span>
+            {% if release %}v{{ release.version }} — Latest Release{% else %}Coming Soon{% endif %}
+        </div>
+        <h1>Your AI coding agent,<br><span>right in the terminal.</span></h1>
+        <p class="subtitle">DeepSeek Code is an open-source CLI tool that creates files, edits code, runs commands, and builds entire projects — powered by DeepSeek's API.</p>
+
+        <div class="dl-row">
+            {% if release %}
+            <a class="btn btn-primary" href="/download">⬇ Download v{{ release.version }}</a>
+            {% else %}
+            <span class="btn btn-primary" style="opacity:.5;cursor:default">No release yet</span>
+            {% endif %}
+            <a class="btn btn-ghost" href="https://github.com/YOUR_USERNAME/deepseek-code" target="_blank">★ Star on GitHub</a>
+        </div>
+        {% if release %}
+        <p class="dl-meta">{{ release.size_display() }} · Python · {{ total_downloads }} downloads</p>
+        {% endif %}
+
+        <!-- terminal preview -->
+        <div class="terminal">
+            <div class="term-bar">
+                <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+                <span class="term-title">deepseek-code — ~/myproject</span>
+            </div>
+            <div class="term-body">
+                <span class="g">You ▸</span> <span class="w">make me a flask api with user auth</span><br><br>
+                <span class="y">  ⚡ create_directory</span> <span class="d">→ flask-api/</span><br>
+                <span class="y">  ⚡ create_file</span> <span class="d">→ flask-api/app.py</span><br>
+                <span class="y">  ⚡ create_file</span> <span class="d">→ flask-api/models.py</span><br>
+                <span class="y">  ⚡ create_file</span> <span class="d">→ flask-api/requirements.txt</span><br>
+                <span class="y">  ⚡ run_command</span> <span class="d">→ pip install -r requirements.txt</span><br><br>
+                <span class="b">DeepSeek ▸</span> <span class="w">Done! Created a Flask API with JWT auth,<br>&nbsp;&nbsp;user registration, login, and protected routes.<br>&nbsp;&nbsp;Run it with: python flask-api/app.py</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features" id="features">
+        <h2>What it does</h2>
+        <p class="sub">One script. No IDE needed. Just talk and it builds.</p>
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon" style="background:rgba(126,184,247,.1)">📁</div>
+                <h3>Creates files & folders</h3>
+                <p>Generates entire project structures — directories, source files, configs — from a single prompt.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon" style="background:rgba(130,218,176,.1)">✏️</div>
+                <h3>Edits existing code</h3>
+                <p>Reads your files, understands the context, and makes precise edits with find-and-replace.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon" style="background:rgba(245,192,81,.1)">⚡</div>
+                <h3>Runs commands</h3>
+                <p>Installs packages, runs scripts, executes git commands — all without leaving the conversation.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon" style="background:rgba(243,139,168,.1)">🔗</div>
+                <h3>Chains operations</h3>
+                <p>Doesn't stop after one tool call. It keeps going until the full task is done — create, edit, test, fix.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon" style="background:rgba(203,166,247,.1)">🧠</div>
+                <h3>Remembers context</h3>
+                <p>Full conversation history. Ask follow-ups, iterate on code, build incrementally across turns.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon" style="background:rgba(148,226,213,.1)">💰</div>
+                <h3>Dirt cheap</h3>
+                <p>DeepSeek API is a fraction of the cost of OpenAI/Anthropic. Build all day for pennies.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="how" id="how">
+        <h2>Get started in 60 seconds</h2>
+        <div class="steps">
+            <div class="step">
+                <h3>Download</h3>
+                <p>Grab the .py file from this page or clone the repo.</p>
+            </div>
+            <div class="step">
+                <h3>Get API key</h3>
+                <p>Sign up at platform.deepseek.com and grab your key.</p>
+            </div>
+            <div class="step">
+                <h3>Set the key</h3>
+                <p>Paste it into the script or set DEEPSEEK_API_KEY env var.</p>
+            </div>
+            <div class="step">
+                <h3>Run it</h3>
+                <p><code style="background:var(--card);padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.78rem">python deepseek_code.py</code></p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>DeepSeek Code — Built by <a href="https://github.com/YOUR_USERNAME">you</a> · <a href="/admin/login">Dev Portal</a></p>
+    </footer>
+
+</div>
+</body>
+</html>
