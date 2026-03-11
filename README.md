@@ -1,13 +1,13 @@
-# DeepSeek Code — Website & Dev Portal
+# VORTEX CS2 — Download Portal
 
-Landing page + admin portal for distributing DeepSeek Code releases.
+Distribution portal for VORTEX CS2 releases.
 Built with Flask + PostgreSQL. Deploys to Railway via GitHub.
 
 ---
 
 ## What's included
 
-- **Landing page** (`/`) — Product info, terminal demo, download button
+- **Landing page** (`/`) — Product info, feature highlights, download button
 - **Download** (`/download`) — Serves the latest active release, tracks downloads
 - **API** (`/api/latest`) — JSON endpoint for latest release info
 - **Dev Portal** (`/admin`) — Upload new releases, activate/deactivate versions, view download stats, change password
@@ -22,7 +22,7 @@ Built with Flask + PostgreSQL. Deploys to Railway via GitHub.
 git init
 git add .
 git commit -m "initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/deepseek-code.git
+git remote add origin https://github.com/queasy881/VORTEX-CS2.git
 git branch -M main
 git push -u origin main
 ```
@@ -31,7 +31,7 @@ git push -u origin main
 
 1. Go to [railway.app](https://railway.app) and sign in with GitHub
 2. Click **"New Project"** → **"Deploy from GitHub Repo"**
-3. Select your `deepseek-code` repo
+3. Select your `VORTEX-CS2` repo
 
 ### 3. Add PostgreSQL
 
@@ -73,7 +73,7 @@ Admin login: `admin` / `changeme123` (or whatever you set in env vars).
 
 1. Go to `yoursite.com/admin/login`
 2. Log in with your admin credentials
-3. Upload a `.py` file (the deepseek_code.py script) with a version number
+3. Upload a new VORTEX release file with a version number
 4. It automatically becomes the active download
 5. Users on the landing page see the download button with your version
 
