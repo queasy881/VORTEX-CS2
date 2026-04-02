@@ -3,66 +3,105 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Emote Control — Download Agent</title>
+  <title>Emote Control — Setup Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="container" style="max-width:560px">
+  <div class="container" style="max-width:580px">
     <div class="card">
       <div class="logo">
         <div class="logo-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
           </svg>
         </div>
-        <h1>Session Ready</h1>
-        <p>Download the agent and connect your PC</p>
+        <h1>Connect Your PC</h1>
+        <p>Follow these steps to start a remote session</p>
       </div>
 
-      <!-- Step 1: Token -->
+      <!-- Step 1 -->
       <div class="download-step">
         <div class="step-number">1</div>
         <div class="step-content">
-          <h3>Copy your session token</h3>
-          <p>You'll need this when you run the agent</p>
-          <div class="token-display-large" onclick="copyToken()">
-            <code id="tokenValue"><%= token %></code>
-            <button class="btn-copy" type="button">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-              </svg>
-            </button>
-          </div>
+          <h3>Create a folder on your PC</h3>
+          <p>Create a new folder anywhere (e.g. <code class="inline-code">C:\EmoteControl</code> or your Desktop). This is where the agent will live.</p>
         </div>
       </div>
 
-      <!-- Step 2: Download -->
+      <!-- Step 2 -->
       <div class="download-step">
         <div class="step-number">2</div>
         <div class="step-content">
+          <h3>Download your config file</h3>
+          <p>This file links the agent to your account. <strong>Save it into the folder you just created.</strong></p>
+          <a href="/download/config?key=<%= userKey %>" class="btn btn-primary download-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            Download config.txt
+          </a>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="download-step">
+        <div class="step-number">3</div>
+        <div class="step-content">
           <h3>Download the agent</h3>
           <% if (agent) { %>
-            <p><%= agent.filename %> (<%= (agent.file_size / (1024*1024)).toFixed(2) %> MB)</p>
-            <a href="/download/agent/binary" class="btn btn-primary" style="margin-top:12px">
+            <p>Save <strong><%= agent.filename %></strong> (<%= (agent.file_size / (1024*1024)).toFixed(1) %> MB) into the <strong>same folder</strong> as config.txt.</p>
+            <a href="/download/agent/binary" class="btn btn-primary download-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Download Agent
+              Download <%= agent.filename %>
             </a>
           <% } else { %>
-            <div class="error-msg" style="margin-top:8px">Agent not available yet. The admin hasn't uploaded one.</div>
+            <div class="error-msg" style="margin-top:8px">The admin hasn't uploaded an agent yet. Check back later.</div>
           <% } %>
         </div>
       </div>
 
-      <!-- Step 3: Run -->
+      <!-- Step 4 -->
       <div class="download-step">
-        <div class="step-number">3</div>
+        <div class="step-number">4</div>
         <div class="step-content">
           <h3>Run the agent</h3>
-          <p>Open the downloaded file and enter your token when prompted. Your session will appear as online on the dashboard.</p>
+          <p>Double-click the agent file. It will <strong>automatically connect</strong> to your account using the config file. No setup needed.</p>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="download-step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <h3>Go back to your dashboard</h3>
+          <p>A new session will appear with your PC's name. Click on it to start sending commands.</p>
+        </div>
+      </div>
+
+      <!-- Important note -->
+      <div class="info-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <div>
+          <strong>Important:</strong> Both files (<code class="inline-code">config.txt</code> and the agent) must be in the <strong>same folder</strong>. Every time you run the agent, a new session is created on your dashboard.
+        </div>
+      </div>
+
+      <!-- Folder preview -->
+      <div class="folder-preview">
+        <div class="folder-title">Your folder should look like this:</div>
+        <div class="folder-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>config.txt</span>
+        </div>
+        <div class="folder-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span><%= agent ? agent.filename : 'EmoteAgent.exe' %></span>
         </div>
       </div>
 
@@ -74,17 +113,5 @@
       </a>
     </div>
   </div>
-
-  <div class="toast" id="toast"></div>
-
-  <script>
-    function copyToken() {
-      navigator.clipboard.writeText('<%= token %>');
-      const toast = document.getElementById('toast');
-      toast.textContent = 'Token copied to clipboard!';
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2500);
-    }
-  </script>
 </body>
 </html>

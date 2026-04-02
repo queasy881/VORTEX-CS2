@@ -578,6 +578,10 @@ body:has(.wide) {
     gap: 16px;
 }
 
+.session-card-wrapper {
+    position: relative;
+}
+
 .session-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -594,6 +598,38 @@ body:has(.wide) {
     border-color: var(--accent);
     transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.session-delete-form {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+}
+
+.btn-delete-session {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    opacity: 0;
+}
+
+.session-card-wrapper:hover .btn-delete-session {
+    opacity: 1;
+}
+
+.btn-delete-session:hover {
+    background: rgba(232, 85, 53, 0.15);
+    border-color: var(--danger);
+    color: var(--danger);
 }
 
 .session-card-header {
@@ -800,6 +836,73 @@ body:has(.wide) {
 }
 
 .step-content p {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* ===== Download page extras ===== */
+
+.download-btn {
+    width: auto !important;
+    display: inline-flex !important;
+    margin-top: 12px;
+}
+
+.inline-code {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--accent);
+}
+
+.info-box {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--accent-subtle);
+    border: 1px solid rgba(232, 123, 53, 0.2);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.info-box svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--accent);
+}
+
+.info-box strong { color: var(--accent); }
+
+.folder-preview {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-top: 14px;
+}
+
+.folder-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 10px;
+}
+
+.folder-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-family: 'Courier New', monospace;
     font-size: 13px;
     color: var(--text-secondary);
 }

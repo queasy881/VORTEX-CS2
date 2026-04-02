@@ -118,9 +118,10 @@ app.post("/signup", async (req, res) => {
     }
 
     const hash = await bcrypt.hash(password, 10);
+    const userKey = crypto.randomBytes(32).toString("hex");
     await pool.query(
-      "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
-      [username, email, hash]
+      "INSERT INTO users (username, email, password_hash, user_key) VALUES ($1, $2, $3, $4)",
+      [username, email, hash, userKey]
     );
     res.redirect("/login");
   } catch (err) {
@@ -152,15 +153,12 @@ app.get("/dashboard", requireUser, async (req, res) => {
   }
 });
 
-// --- Start New Session ---
-app.post("/dashboard/new-session", requireUser, async (req, res) => {
-  const token = crypto.randomBytes(32).toString("hex");
+// --- Start New Session (redirects to download page with user_key) ---
+app.get("/dashboard/new-session", requireUser, async (req, res) => {
   try {
-    await pool.query(
-      "INSERT INTO sessions (user_id, token, status) VALUES ($1, $2, 'pending')",
-      [req.session.userId, token]
-    );
-    res.redirect(`/download/agent?token=${token}`);
+    const result = await pool.query("SELECT user_key FROM users WHERE id = $1", [req.session.userId]);
+    const userKey = result.rows[0].user_key;
+    res.redirect(`/download/agent?key=${userKey}`);
   } catch (err) {
     console.error(err);
     res.redirect("/dashboard");
@@ -253,28 +251,38 @@ app.post("/session/:id/delete", requireUser, async (req, res) => {
 // ============================================================
 
 app.get("/download/agent", async (req, res) => {
-  const { token } = req.query;
-  if (!token) {
-    return res.status(400).send("Missing token");
+  const { key } = req.query;
+  if (!key) {
+    return res.status(400).send("Missing key");
   }
 
   try {
-    const sess = await pool.query("SELECT * FROM sessions WHERE token = $1", [token]);
-    if (sess.rows.length === 0) return res.status(404).send("Invalid token");
+    const user = await pool.query("SELECT id, username FROM users WHERE user_key = $1", [key]);
+    if (user.rows.length === 0) return res.status(404).send("Invalid key");
 
     const agent = await pool.query(
       "SELECT id, filename, file_size FROM agents ORDER BY uploaded_at DESC LIMIT 1"
     );
 
     res.render("download", {
-      token,
-      session: sess.rows[0],
+      userKey: key,
+      user: user.rows[0],
       agent: agent.rows[0] || null,
     });
   } catch (err) {
     console.error(err);
     res.status(500).send("Server error");
   }
+});
+
+// Serve config.txt with user_key for the agent
+app.get("/download/config", (req, res) => {
+  const { key } = req.query;
+  if (!key) return res.status(400).send("Missing key");
+  const config = JSON.stringify({ server: "https://vortex-cs2.com", user_key: key }, null, 2);
+  res.setHeader("Content-Disposition", 'attachment; filename="config.txt"');
+  res.setHeader("Content-Type", "text/plain");
+  res.send(config);
 });
 
 app.get("/download/agent/binary", async (req, res) => {
@@ -295,8 +303,30 @@ app.get("/download/agent/binary", async (req, res) => {
 });
 
 // ============================================================
-// AGENT API (token auth)
+// AGENT API
 // ============================================================
+
+// Agent self-registers using the user's key — creates a new session, returns token
+app.post("/api/agent/register", async (req, res) => {
+  const { user_key, machine_name } = req.body;
+  if (!user_key) return res.status(400).json({ error: "Missing user_key" });
+
+  try {
+    const user = await pool.query("SELECT id FROM users WHERE user_key = $1", [user_key]);
+    if (user.rows.length === 0) return res.status(401).json({ error: "Invalid user_key" });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const session = await pool.query(
+      "INSERT INTO sessions (user_id, token, machine_name, status) VALUES ($1, $2, $3, 'online') RETURNING id, token",
+      [user.rows[0].id, token, machine_name || "Unknown"]
+    );
+
+    res.json({ token: session.rows[0].token, session_id: session.rows[0].id });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 async function requireAgentToken(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "") || req.query.token;

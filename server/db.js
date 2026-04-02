@@ -13,7 +13,12 @@ async function initDB() {
     SELECT data_type FROM information_schema.columns
     WHERE table_name = 'users' AND column_name = 'id'
   `);
-  if (check.rows.length > 0 && check.rows[0].data_type === 'uuid') {
+  // Also check if user_key column is missing (old schema)
+  const keyCheck = await pool.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'user_key'
+  `);
+  if (check.rows.length > 0 && (check.rows[0].data_type === 'uuid' || keyCheck.rows.length === 0)) {
     console.log("Detected old UUID schema, dropping tables to recreate...");
     await pool.query("DROP TABLE IF EXISTS command_queue CASCADE");
     await pool.query("DROP TABLE IF EXISTS sessions CASCADE");
@@ -27,6 +32,7 @@ async function initDB() {
       username VARCHAR(50) UNIQUE NOT NULL,
       email VARCHAR(255) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
+      user_key VARCHAR(64) UNIQUE NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
