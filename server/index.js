@@ -153,12 +153,47 @@ app.get("/dashboard", requireUser, async (req, res) => {
   }
 });
 
-// --- Start New Session (redirects to download page with user_key) ---
+// --- Start New Session — downloads a .bat launcher with user_key baked in ---
 app.get("/dashboard/new-session", requireUser, async (req, res) => {
   try {
     const result = await pool.query("SELECT user_key FROM users WHERE id = $1", [req.session.userId]);
     const userKey = result.rows[0].user_key;
-    res.redirect(`/download/agent?key=${userKey}`);
+
+    // Generate a .bat that downloads the exe (if needed) and runs it with the key
+    const bat = `@echo off
+title Emote Control Agent
+echo ============================================
+echo   Emote Control - Connecting your PC...
+echo ============================================
+echo.
+
+set "DIR=%~dp0"
+set "EXE=%DIR%EmoteAgent.exe"
+set "KEY=${userKey}"
+set "SERVER=https://vortex-cs2.com"
+
+REM Download agent exe if not already present
+if not exist "%EXE%" (
+  echo Downloading agent...
+  powershell -Command "Invoke-WebRequest -Uri '%SERVER%/download/agent/binary' -OutFile '%EXE%'" 2>nul
+  if not exist "%EXE%" (
+    echo [ERROR] Could not download agent. Check your internet connection.
+    pause
+    exit /b 1
+  )
+  echo Download complete.
+  echo.
+)
+
+echo Starting agent...
+echo.
+"%EXE%" "%SERVER%" "%KEY%"
+pause
+`;
+
+    res.setHeader("Content-Disposition", 'attachment; filename="EmoteControl.bat"');
+    res.setHeader("Content-Type", "application/x-bat");
+    res.send(bat);
   } catch (err) {
     console.error(err);
     res.redirect("/dashboard");
@@ -249,41 +284,6 @@ app.post("/session/:id/delete", requireUser, async (req, res) => {
 // ============================================================
 // DOWNLOAD ROUTES
 // ============================================================
-
-app.get("/download/agent", async (req, res) => {
-  const { key } = req.query;
-  if (!key) {
-    return res.status(400).send("Missing key");
-  }
-
-  try {
-    const user = await pool.query("SELECT id, username FROM users WHERE user_key = $1", [key]);
-    if (user.rows.length === 0) return res.status(404).send("Invalid key");
-
-    const agent = await pool.query(
-      "SELECT id, filename, file_size FROM agents ORDER BY uploaded_at DESC LIMIT 1"
-    );
-
-    res.render("download", {
-      userKey: key,
-      user: user.rows[0],
-      agent: agent.rows[0] || null,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Server error");
-  }
-});
-
-// Serve config.txt with user_key for the agent
-app.get("/download/config", (req, res) => {
-  const { key } = req.query;
-  if (!key) return res.status(400).send("Missing key");
-  const config = JSON.stringify({ server: "https://vortex-cs2.com", user_key: key }, null, 2);
-  res.setHeader("Content-Disposition", 'attachment; filename="config.txt"');
-  res.setHeader("Content-Type", "text/plain");
-  res.send(config);
-});
 
 app.get("/download/agent/binary", async (req, res) => {
   try {
