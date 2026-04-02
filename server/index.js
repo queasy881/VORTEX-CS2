@@ -11,7 +11,7 @@ const { pool, initDB } = require("./db");
 
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Railway, Heroku, etc.)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const PORT = process.env.PORT || 3000; // v2
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
@@ -154,41 +154,178 @@ app.get("/dashboard", requireUser, async (req, res) => {
   }
 });
 
-// --- Start New Session — downloads a .bat launcher with user_key baked in ---
+// --- Start New Session — downloads a .bat with the full agent embedded as PowerShell ---
 app.get("/dashboard/new-session", requireUser, async (req, res) => {
   try {
     const result = await pool.query("SELECT user_key FROM users WHERE id = $1", [req.session.userId]);
     const userKey = result.rows[0].user_key;
+    const serverUrl = `${req.protocol}://${req.get('host')}`;
 
-    // Generate a .bat that downloads the exe (if needed) and runs it with the key
     const bat = `@echo off
-title Emote Control Agent
+title Emote Control
 echo ============================================
 echo   Emote Control - Connecting your PC...
 echo ============================================
 echo.
-
-set "DIR=%~dp0"
-set "EXE=%DIR%EmoteAgent.exe"
-set "KEY=${userKey}"
-set "SERVER=${req.protocol}://${req.get('host')}"
-
-REM Download agent exe if not already present
-if not exist "%EXE%" (
-  echo Downloading agent...
-  powershell -Command "Invoke-WebRequest -Uri '%SERVER%/download/agent/binary' -OutFile '%EXE%'" 2>nul
-  if not exist "%EXE%" (
-    echo [ERROR] Could not download agent. Check your internet connection.
-    pause
-    exit /b 1
-  )
-  echo Download complete.
-  echo.
-)
-
-echo Starting agent...
+echo Please wait, this may take a moment...
 echo.
-"%EXE%" "%SERVER%" "%KEY%"
+
+powershell -ExecutionPolicy Bypass -Command ^
+$ErrorActionPreference='SilentlyContinue'; ^
+$SERVER='${serverUrl}'; ^
+$KEY='${userKey}'; ^
+$HWID=''; ^
+try { ^
+  $uuid=(Get-CimInstance Win32_ComputerSystemProduct).UUID; ^
+  if($uuid -and $uuid -ne 'FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'){$HWID=$uuid} ^
+} catch {}; ^
+if(-not $HWID){ ^
+  try { ^
+    $wmic=wmic csproduct get UUID 2^>$null; ^
+    $lines=$wmic -split '\\n' ^| ForEach-Object {$_.Trim()} ^| Where-Object {$_ -and $_ -ne 'UUID'}; ^
+    if($lines){$HWID=$lines[0]} ^
+  } catch {} ^
+}; ^
+if(-not $HWID){$HWID=(Get-WmiObject Win32_NetworkAdapterConfiguration ^| Where-Object {$_.MACAddress} ^| Select-Object -First 1).MACAddress}; ^
+$sha=New-Object System.Security.Cryptography.SHA256Managed; ^
+$bytes=[System.Text.Encoding]::UTF8.GetBytes($HWID); ^
+$hash=$sha.ComputeHash($bytes); ^
+$HWID=($hash ^| ForEach-Object {$_.ToString('x2')}) -join ''; ^
+$HWID=$HWID.Substring(0,32); ^
+$machine=\"$env:COMPUTERNAME ($([System.Environment]::OSVersion.Platform) $([System.Environment]::OSVersion.Version.Major).$([System.Environment]::OSVersion.Version.Minor))\"; ^
+Write-Host \"Machine: $machine\"; ^
+Write-Host \"Connecting to $SERVER...\"; ^
+Write-Host ''; ^
+$body=@{user_key=$KEY;machine_name=$machine;hwid=$HWID} ^| ConvertTo-Json; ^
+$TOKEN=$null; ^
+$retries=0; ^
+while(-not $TOKEN -and $retries -lt 5){ ^
+  try { ^
+    $resp=Invoke-RestMethod -Uri \"$SERVER/api/agent/register\" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 15; ^
+    $TOKEN=$resp.token; ^
+  } catch { ^
+    $retries++; ^
+    Write-Host \"  Retrying in 5s... ($retries/5)\"; ^
+    Start-Sleep 5 ^
+  } ^
+}; ^
+if(-not $TOKEN){ ^
+  Write-Host '[ERROR] Could not connect after 5 attempts.'; ^
+  Write-Host 'Check your internet connection and try again.'; ^
+  Read-Host 'Press Enter to exit'; ^
+  exit 1 ^
+}; ^
+Write-Host 'Connected! Session is ONLINE.'; ^
+Write-Host 'Listening for commands... (close this window to disconnect)'; ^
+Write-Host ''; ^
+$headers=@{Authorization=\"Bearer $TOKEN\";'Content-Type'='application/json'}; ^
+$lastHeartbeat=[datetime]::MinValue; ^
+while($true){ ^
+  $now=Get-Date; ^
+  if(($now - $lastHeartbeat).TotalSeconds -ge 15){ ^
+    try { ^
+      $hb=@{machine_name=$machine} ^| ConvertTo-Json; ^
+      Invoke-RestMethod -Uri \"$SERVER/api/agent/heartbeat\" -Method Post -Body $hb -Headers $headers -TimeoutSec 10 ^| Out-Null ^
+    } catch {}; ^
+    $lastHeartbeat=$now ^
+  }; ^
+  try { ^
+    $cmds=Invoke-RestMethod -Uri \"$SERVER/api/agent/commands\" -Method Get -Headers $headers -TimeoutSec 10; ^
+    foreach($cmd in $cmds.commands){ ^
+      $c=$cmd.command.Trim().ToLower(); ^
+      $a=$cmd.args; ^
+      $rid=$cmd.id; ^
+      Write-Host \"  ^> $c $(if($a){$a})\"; ^
+      $resultText=''; ^
+      $resultStatus='done'; ^
+      try { ^
+        switch($c){ ^
+          'screenshot' { ^
+            Add-Type -AssemblyName System.Windows.Forms; ^
+            Add-Type -AssemblyName System.Drawing; ^
+            $screen=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; ^
+            $bmp=New-Object System.Drawing.Bitmap($screen.Width,$screen.Height); ^
+            $g=[System.Drawing.Graphics]::FromImage($bmp); ^
+            $g.CopyFromScreen($screen.Location,[System.Drawing.Point]::Empty,$screen.Size); ^
+            $ms=New-Object System.IO.MemoryStream; ^
+            $bmp.Save($ms,[System.Drawing.Imaging.ImageFormat]::Png); ^
+            $b64=[Convert]::ToBase64String($ms.ToArray()); ^
+            $resultText=\"[Screenshot - $($b64.Length) bytes]`ndata:image/png;base64,$($b64.Substring(0,[Math]::Min(200,$b64.Length)))...\"; ^
+            $g.Dispose();$bmp.Dispose();$ms.Dispose() ^
+          } ^
+          'sysinfo' { ^
+            $info=@(); ^
+            $info+=\"Hostname:  $env:COMPUTERNAME\"; ^
+            $info+=\"OS:        $([System.Environment]::OSVersion.VersionString)\"; ^
+            $info+=\"Machine:   $env:PROCESSOR_ARCHITECTURE\"; ^
+            $info+=\"Processor: $env:PROCESSOR_IDENTIFIER\"; ^
+            try{$ip=([System.Net.Dns]::GetHostAddresses($env:COMPUTERNAME) ^| Where-Object {$_.AddressFamily -eq 'InterNetwork'} ^| Select-Object -First 1).IPAddressToString;$info+=\"Local IP:  $ip\"}catch{$info+='Local IP:  unknown'}; ^
+            try{$mem=Get-CimInstance Win32_OperatingSystem;$total=[math]::Round($mem.TotalVisibleMemorySize/1MB,1);$free=[math]::Round($mem.FreePhysicalMemory/1MB,1);$info+=\"RAM:       $total GB total, $free GB free\"}catch{}; ^
+            try{$cpu=(Get-CimInstance Win32_Processor).NumberOfLogicalProcessors;$info+=\"CPU Cores: $cpu\"}catch{}; ^
+            try{$disk=Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='C:'\";$dtotal=[math]::Round($disk.Size/1GB,1);$dfree=[math]::Round($disk.FreeSpace/1GB,1);$info+=\"Disk C:    $dtotal GB total, $dfree GB free\"}catch{}; ^
+            $resultText=$info -join \"`n\" ^
+          } ^
+          'cmd' { ^
+            if(-not $a){$resultText='No command provided';$resultStatus='failed'} ^
+            else{ ^
+              try { ^
+                $proc=Start-Process cmd.exe -ArgumentList '/c',$a -NoNewWindow -Wait -PassThru -RedirectStandardOutput \"$env:TEMP\\ec_out.txt\" -RedirectStandardError \"$env:TEMP\\ec_err.txt\"; ^
+                $out=Get-Content \"$env:TEMP\\ec_out.txt\" -Raw -ErrorAction SilentlyContinue; ^
+                $err=Get-Content \"$env:TEMP\\ec_err.txt\" -Raw -ErrorAction SilentlyContinue; ^
+                $resultText=$out; ^
+                if($err){$resultText+=\"`n[STDERR]`n$err\"}; ^
+                if(-not $resultText){$resultText='(no output)'}; ^
+                $resultText=$resultText.Substring(0,[Math]::Min(5000,$resultText.Length)); ^
+                Remove-Item \"$env:TEMP\\ec_out.txt\" -Force -ErrorAction SilentlyContinue; ^
+                Remove-Item \"$env:TEMP\\ec_err.txt\" -Force -ErrorAction SilentlyContinue ^
+              } catch { $resultText=\"Error: $_\";$resultStatus='failed' } ^
+            } ^
+          } ^
+          'list_files' { ^
+            $p=if($a){$a}else{$env:USERPROFILE}; ^
+            if(-not (Test-Path $p -PathType Container)){$resultText=\"'$p' is not a directory\";$resultStatus='failed'} ^
+            else{ ^
+              $items=Get-ChildItem $p -ErrorAction Stop; ^
+              $lines=@(\"$p ($($items.Count) items):\"); ^
+              foreach($item in $items ^| Sort-Object Name){ ^
+                if($item.PSIsContainer){$lines+=\"  [DIR]  $($item.Name)\"} ^
+                else{$sz=if($item.Length -lt 1024){\"$($item.Length) B\"}elseif($item.Length -lt 1MB){\"$([math]::Round($item.Length/1024)) KB\"}else{\"$([math]::Round($item.Length/1MB)) MB\"};$lines+=\"  [FILE] $($item.Name) ($sz)\"} ^
+              }; ^
+              $resultText=($lines -join \"`n\").Substring(0,[Math]::Min(5000,($lines -join \"`n\").Length)) ^
+            } ^
+          } ^
+          'open' { ^
+            if(-not $a){$resultText='No path provided';$resultStatus='failed'} ^
+            else{ Start-Process $a; $resultText=\"Opened: $a\" } ^
+          } ^
+          'notify' { ^
+            $msg=if($a){$a}else{'Emote Control'}; ^
+            [Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] ^> $null; ^
+            $t=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText01); ^
+            $t.GetElementsByTagName('text')[0].AppendChild($t.CreateTextNode($msg)) ^> $null; ^
+            [Windows.UI.Notifications.ToastNotification]::new($t) ^| ForEach-Object {[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Emote Control').Show($_)}; ^
+            $resultText=\"Notification: $msg\" ^
+          } ^
+          default { ^
+            $resultText=\"Unknown command: $c\"; ^
+            $resultStatus='failed' ^
+          } ^
+        } ^
+      } catch { $resultText=\"Error: $_\";$resultStatus='failed' }; ^
+      try { ^
+        $rbody=@{result=$resultText;status=$resultStatus} ^| ConvertTo-Json; ^
+        Invoke-RestMethod -Uri \"$SERVER/api/agent/command/$rid/result\" -Method Post -Body $rbody -Headers $headers -TimeoutSec 10 ^| Out-Null ^
+      } catch {} ^
+    } ^
+  } catch {}; ^
+  Start-Sleep 3 ^
+}
+
+if %ERRORLEVEL% NEQ 0 (
+  echo.
+  echo [ERROR] Something went wrong. Please try again.
+  echo If this keeps happening, contact the person who sent you this file.
+)
 pause
 `;
 

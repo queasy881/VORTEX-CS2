@@ -56,7 +56,7 @@
           <% } else { %>
             <span class="dot red"></span>
           <% } %>
-          Current Agent
+          Current Agent File
         </div>
 
         <% if (agent) { %>
@@ -85,15 +85,15 @@
 
       <!-- Upload -->
       <div class="section">
-        <div class="section-title"><span class="dot"></span> Upload Agent</div>
+        <div class="section-title"><span class="dot"></span> Upload Agent File</div>
         <form method="POST" action="/dev/upload" enctype="multipart/form-data" id="uploadForm">
           <div class="upload-area" id="uploadArea">
-            <input type="file" name="agent_file" id="fileInput" accept=".exe,.py,.zip" required>
+            <input type="file" name="agent_file" id="fileInput" accept=".bat,.ps1,.zip" required>
             <div class="upload-icon">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
             <p class="upload-text" id="uploadText"><strong>Click to upload</strong> or drag & drop</p>
-            <p class="upload-hint">.exe, .py, or .zip — max 200 MB</p>
+            <p class="upload-hint">.bat or .ps1 — max 10 MB</p>
           </div>
           <button type="submit" class="btn btn-primary" id="uploadBtn" style="margin-top:16px;display:none;background:#c44;">Upload Agent</button>
         </form>
