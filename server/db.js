@@ -59,6 +59,27 @@ async function initDB() {
     )
   `);
 
+  // Migration: add hwid column to sessions if it doesn't exist
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'sessions' AND column_name = 'hwid'
+      ) THEN
+        ALTER TABLE sessions ADD COLUMN hwid VARCHAR(255);
+      END IF;
+    END
+    $$;
+  `);
+
+  // Partial unique index: one session per (user, hwid) for non-null hwids
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_user_hwid
+    ON sessions (user_id, hwid)
+    WHERE hwid IS NOT NULL
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS command_queue (
       id SERIAL PRIMARY KEY,

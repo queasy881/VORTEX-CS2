@@ -10,6 +10,7 @@ const path = require("path");
 const { pool, initDB } = require("./db");
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Railway, Heroku, etc.)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 const PORT = process.env.PORT || 3000; // v2
@@ -170,7 +171,7 @@ echo.
 set "DIR=%~dp0"
 set "EXE=%DIR%EmoteAgent.exe"
 set "KEY=${userKey}"
-set "SERVER=https://vortex-cs2.com"
+set "SERVER=${req.protocol}://${req.get('host')}"
 
 REM Download agent exe if not already present
 if not exist "%EXE%" (
@@ -306,19 +307,42 @@ app.get("/download/agent/binary", async (req, res) => {
 // AGENT API
 // ============================================================
 
-// Agent self-registers using the user's key — creates a new session, returns token
+// Agent self-registers using the user's key — resumes existing session by HWID or creates new
 app.post("/api/agent/register", async (req, res) => {
-  const { user_key, machine_name } = req.body;
+  const { user_key, machine_name, hwid } = req.body;
   if (!user_key) return res.status(400).json({ error: "Missing user_key" });
 
   try {
     const user = await pool.query("SELECT id FROM users WHERE user_key = $1", [user_key]);
     if (user.rows.length === 0) return res.status(401).json({ error: "Invalid user_key" });
 
+    const userId = user.rows[0].id;
     const token = crypto.randomBytes(32).toString("hex");
+    const name = machine_name || "Unknown";
+
+    // If hwid provided, try to resume an existing session for this machine
+    if (hwid) {
+      const existing = await pool.query(
+        "SELECT id FROM sessions WHERE user_id = $1 AND hwid = $2",
+        [userId, hwid]
+      );
+
+      if (existing.rows.length > 0) {
+        const updated = await pool.query(
+          `UPDATE sessions
+           SET token = $1, status = 'online', machine_name = $2, last_seen = NOW()
+           WHERE id = $3
+           RETURNING id, token`,
+          [token, name, existing.rows[0].id]
+        );
+        return res.json({ token: updated.rows[0].token, session_id: updated.rows[0].id });
+      }
+    }
+
+    // No existing session (or no hwid) — create new
     const session = await pool.query(
-      "INSERT INTO sessions (user_id, token, machine_name, status) VALUES ($1, $2, $3, 'online') RETURNING id, token",
-      [user.rows[0].id, token, machine_name || "Unknown"]
+      "INSERT INTO sessions (user_id, token, machine_name, hwid, status) VALUES ($1, $2, $3, $4, 'online') RETURNING id, token",
+      [userId, token, name, hwid || null]
     );
 
     res.json({ token: session.rows[0].token, session_id: session.rows[0].id });

@@ -15,6 +15,8 @@ import base64
 import io
 import threading
 import traceback
+import hashlib
+import uuid as _uuid
 
 try:
     import requests
@@ -48,6 +50,68 @@ def get_machine_name():
     return f"{platform.node()} ({platform.system()} {platform.release()})"
 
 
+def get_hwid():
+    """Generate a stable hardware ID for this machine."""
+    raw = None
+
+    if platform.system() == "Windows":
+        # Try PowerShell (preferred, wmic is deprecated on Win11)
+        try:
+            result = subprocess.run(
+                ["powershell", "-Command", "(Get-CimInstance Win32_ComputerSystemProduct).UUID"],
+                capture_output=True, text=True, timeout=10,
+            )
+            val = result.stdout.strip()
+            if val and val.upper() != "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF":
+                raw = val
+        except Exception:
+            pass
+        # Fallback to wmic
+        if not raw:
+            try:
+                result = subprocess.run(
+                    ["wmic", "csproduct", "get", "UUID"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                for line in result.stdout.strip().splitlines():
+                    line = line.strip()
+                    if line and line.upper() != "UUID":
+                        raw = line
+                        break
+            except Exception:
+                pass
+
+    elif platform.system() == "Linux":
+        for path in ["/etc/machine-id", "/var/lib/dbus/machine-id"]:
+            try:
+                with open(path, "r") as f:
+                    val = f.read().strip()
+                    if val:
+                        raw = val
+                        break
+            except Exception:
+                continue
+
+    elif platform.system() == "Darwin":
+        try:
+            result = subprocess.run(
+                ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                capture_output=True, text=True, timeout=10,
+            )
+            for line in result.stdout.splitlines():
+                if "IOPlatformUUID" in line:
+                    raw = line.split('"')[-2]
+                    break
+        except Exception:
+            pass
+
+    # Fallback: MAC address
+    if not raw:
+        raw = str(_uuid.getnode())
+
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+
 def headers():
     return {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
 
@@ -58,7 +122,7 @@ def register(user_key):
     try:
         resp = requests.post(
             f"{SERVER}/api/agent/register",
-            json={"user_key": user_key, "machine_name": get_machine_name()},
+            json={"user_key": user_key, "machine_name": get_machine_name(), "hwid": get_hwid()},
             timeout=15,
         )
         if resp.status_code == 200:

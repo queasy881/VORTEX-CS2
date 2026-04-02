@@ -6,3 +6,6 @@ node_modules/
 agent/build/
 agent/dist/
 agent/*.spec
+build/
+dist/
+*.spec
