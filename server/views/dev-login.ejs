@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emote Control — Dev Access</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">
+        <div class="logo-icon" style="background:#c44;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+        </div>
+        <h1>Dev Panel</h1>
+        <p>Admin access only</p>
+      </div>
+
+      <% if (error) { %>
+        <div class="error-msg"><%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/dev/login" autocomplete="off">
+        <div class="form-group">
+          <label for="username">Admin Username</label>
+          <input type="text" id="username" name="username" placeholder="Enter admin username" required autofocus>
+        </div>
+        <div class="form-group">
+          <label for="password">Admin Password</label>
+          <input type="password" id="password" name="password" placeholder="Enter admin password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="background:#c44;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+          Access Dev Panel
+        </button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emote Control — Dev Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container wide">
+    <div class="card">
+      <!-- Header -->
+      <div class="admin-header">
+        <div class="admin-title-group">
+          <div class="logo-icon small" style="background:#c44;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+          </div>
+          <div>
+            <h1>Dev Panel</h1>
+            <p class="subtitle">Logged in as <strong><%= user %></strong></p>
+          </div>
+        </div>
+        <div class="admin-actions">
+          <a href="/dev/logout" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="section">
+        <div class="section-title"><span class="dot green"></span> Platform Stats</div>
+        <div class="agent-info">
+          <div class="agent-stat">
+            <div class="label">Users</div>
+            <div class="value"><%= stats.total_users %></div>
+          </div>
+          <div class="agent-stat">
+            <div class="label">Total Sessions</div>
+            <div class="value"><%= stats.total_sessions %></div>
+          </div>
+          <div class="agent-stat">
+            <div class="label">Online Now</div>
+            <div class="value" style="color:var(--success)"><%= stats.online_sessions %></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Agent -->
+      <div class="section">
+        <div class="section-title">
+          <% if (agent) { %>
+            <span class="dot green"></span>
+          <% } else { %>
+            <span class="dot red"></span>
+          <% } %>
+          Current Agent
+        </div>
+
+        <% if (agent) { %>
+          <div class="agent-info">
+            <div class="agent-stat">
+              <div class="label">Filename</div>
+              <div class="value"><%= agent.filename %></div>
+            </div>
+            <div class="agent-stat">
+              <div class="label">Size</div>
+              <div class="value"><%= (agent.file_size / (1024 * 1024)).toFixed(2) %> MB</div>
+            </div>
+            <div class="agent-stat">
+              <div class="label">Uploaded</div>
+              <div class="value"><%= new Date(agent.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %></div>
+            </div>
+          </div>
+          <div class="agent-actions">
+            <a href="/download/agent/binary" class="btn btn-outline btn-sm">Download</a>
+            <a href="/dev/delete-agent" class="btn btn-danger btn-sm" onclick="return confirm('Delete the current agent?')">Delete</a>
+          </div>
+        <% } else { %>
+          <div class="empty-state"><p>No agent uploaded yet</p></div>
+        <% } %>
+      </div>
+
+      <!-- Upload -->
+      <div class="section">
+        <div class="section-title"><span class="dot"></span> Upload Agent</div>
+        <form method="POST" action="/dev/upload" enctype="multipart/form-data" id="uploadForm">
+          <div class="upload-area" id="uploadArea">
+            <input type="file" name="agent_file" id="fileInput" accept=".exe,.py,.zip" required>
+            <div class="upload-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <p class="upload-text" id="uploadText"><strong>Click to upload</strong> or drag & drop</p>
+            <p class="upload-hint">.exe, .py, or .zip — max 200 MB</p>
+          </div>
+          <button type="submit" class="btn btn-primary" id="uploadBtn" style="margin-top:16px;display:none;background:#c44;">Upload Agent</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById("uploadArea");
+    const fileInput = document.getElementById("fileInput");
+    const uploadText = document.getElementById("uploadText");
+    const uploadBtn = document.getElementById("uploadBtn");
+
+    ["dragenter","dragover"].forEach(e => uploadArea.addEventListener(e, ev => { ev.preventDefault(); uploadArea.classList.add("dragover"); }));
+    ["dragleave","drop"].forEach(e => uploadArea.addEventListener(e, ev => { ev.preventDefault(); uploadArea.classList.remove("dragover"); }));
+    uploadArea.addEventListener("drop", ev => { if (ev.dataTransfer.files.length) { fileInput.files = ev.dataTransfer.files; onFile(ev.dataTransfer.files[0]); } });
+    fileInput.addEventListener("change", () => { if (fileInput.files.length) onFile(fileInput.files[0]); });
+
+    function onFile(f) {
+      uploadText.innerHTML = `<strong>${f.name}</strong> (${(f.size/1024/1024).toFixed(2)} MB)`;
+      uploadBtn.style.display = "flex";
+      uploadArea.style.borderColor = "#c44";
+    }
+  </script>
+</body>
+</html>

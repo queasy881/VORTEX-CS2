@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emote Control — Download Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container" style="max-width:560px">
+    <div class="card">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <h1>Session Ready</h1>
+        <p>Download the agent and connect your PC</p>
+      </div>
+
+      <!-- Step 1: Token -->
+      <div class="download-step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>Copy your session token</h3>
+          <p>You'll need this when you run the agent</p>
+          <div class="token-display-large" onclick="copyToken()">
+            <code id="tokenValue"><%= token %></code>
+            <button class="btn-copy" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Download -->
+      <div class="download-step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>Download the agent</h3>
+          <% if (agent) { %>
+            <p><%= agent.filename %> (<%= (agent.file_size / (1024*1024)).toFixed(2) %> MB)</p>
+            <a href="/download/agent/binary" class="btn btn-primary" style="margin-top:12px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download Agent
+            </a>
+          <% } else { %>
+            <div class="error-msg" style="margin-top:8px">Agent not available yet. The admin hasn't uploaded one.</div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Step 3: Run -->
+      <div class="download-step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>Run the agent</h3>
+          <p>Open the downloaded file and enter your token when prompted. Your session will appear as online on the dashboard.</p>
+        </div>
+      </div>
+
+      <a href="/dashboard" class="btn btn-outline" style="width:100%;margin-top:24px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function copyToken() {
+      navigator.clipboard.writeText('<%= token %>');
+      const toast = document.getElementById('toast');
+      toast.textContent = 'Token copied to clipboard!';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+  </script>
+</body>
+</html>

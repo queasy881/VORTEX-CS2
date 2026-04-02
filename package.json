@@ -1,0 +1,20 @@
+{
+  "name": "emote-control",
+  "version": "1.0.0",
+  "description": "Remote control agent platform",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "ejs": "^3.1.10",
+    "pg": "^8.13.0",
+    "multer": "^1.4.5-lts.1",
+    "dotenv": "^16.4.5",
+    "bcryptjs": "^2.4.3",
+    "connect-pg-simple": "^10.0.0"
+  }
+}
