@@ -8,6 +8,19 @@ const pool = new Pool({
 });
 
 async function initDB() {
+  // Check if users table has UUID id (old schema) and drop all if so
+  const check = await pool.query(`
+    SELECT data_type FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'id'
+  `);
+  if (check.rows.length > 0 && check.rows[0].data_type === 'uuid') {
+    console.log("Detected old UUID schema, dropping tables to recreate...");
+    await pool.query("DROP TABLE IF EXISTS command_queue CASCADE");
+    await pool.query("DROP TABLE IF EXISTS sessions CASCADE");
+    await pool.query("DROP TABLE IF EXISTS agents CASCADE");
+    await pool.query("DROP TABLE IF EXISTS users CASCADE");
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
