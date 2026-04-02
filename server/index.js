@@ -12,7 +12,7 @@ const { pool, initDB } = require("./db");
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // v2
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 const SECRET_KEY = process.env.SECRET_KEY || "dev-secret-change-me";
