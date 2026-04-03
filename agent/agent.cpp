@@ -508,9 +508,10 @@ static std::string run_ps(const std::string& script) {
 // GDI objects are created ONCE and reused across all frames.
 // This avoids the massive overhead of Create/Delete per frame.
 
-// Cached GDI objects (created once, reused across frames)
+// Cached GDI objects — DIB section for zero-copy pixel access
 static HDC g_capMemDC = NULL;
 static HBITMAP g_capBitmap = NULL;
+static BYTE* g_capPixels = NULL;  // Direct pointer into DIB section — no GetDIBits needed
 static int g_capW = 0, g_capH = 0;
 static int g_scrW = 0, g_scrH = 0;
 
@@ -520,42 +521,44 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
     int capW = screenW, capH = screenH;
+    if (capW > 1280) {
+        capH = (int)((double)capH * 1280.0 / capW);
+        capW = 1280;
+    }
 
-    // Get fresh screen DC each frame
     HDC hScreen = GetDC(NULL);
     if (!hScreen) return result;
 
-    // Cache memory DC and bitmap (only recreate if resolution changes)
+    // Create DIB section once — gives direct pixel pointer (no GetDIBits)
     if (capW != g_capW || capH != g_capH || !g_capMemDC) {
         if (g_capBitmap) DeleteObject(g_capBitmap);
         if (g_capMemDC) DeleteDC(g_capMemDC);
         g_capW = capW; g_capH = capH;
         g_scrW = screenW; g_scrH = screenH;
+
+        BITMAPINFOHEADER bi = {};
+        bi.biSize = sizeof(bi);
+        bi.biWidth = capW;
+        bi.biHeight = -capH; // top-down
+        bi.biPlanes = 1;
+        bi.biBitCount = 32;
+        bi.biCompression = BI_RGB;
+
         g_capMemDC = CreateCompatibleDC(hScreen);
-        g_capBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
+        g_capBitmap = CreateDIBSection(hScreen, (BITMAPINFO*)&bi,
+            DIB_RGB_COLORS, (void**)&g_capPixels, NULL, 0);
         SelectObject(g_capMemDC, g_capBitmap);
-        size_t pixelSize = (size_t)capW * capH * 4;
-        if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
+        SetStretchBltMode(g_capMemDC, COLORONCOLOR);
     }
 
-    // BitBlt at native resolution — no downscale, no interpolation, just copy
-    BitBlt(g_capMemDC, 0, 0, g_capW, g_capH, hScreen, 0, 0, SRCCOPY);
+    // Capture — pixels land directly in g_capPixels, no copy needed
+    StretchBlt(g_capMemDC, 0, 0, g_capW, g_capH,
+               hScreen, 0, 0, g_scrW, g_scrH, SRCCOPY);
+    GdiFlush(); // Ensure StretchBlt completes before reading pixels
 
     ReleaseDC(NULL, hScreen);
 
-    // Extract BGRA pixels
-    BITMAPINFOHEADER bi = {};
-    bi.biSize = sizeof(bi);
-    bi.biWidth = g_capW;
-    bi.biHeight = -g_capH;
-    bi.biPlanes = 1;
-    bi.biBitCount = 32;
-    bi.biCompression = BI_RGB;
-
-    GetDIBits(g_capMemDC, g_capBitmap, 0, g_capH,
-              g_pixelBuf.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
-
-    // JPEG encode
+    // JPEG encode directly from DIB section pixel buffer
     if (!g_tjCompressor) g_tjCompressor = tjInitCompress();
     if (!g_tjCompressor) return result;
 
@@ -564,7 +567,7 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
 
     int rc = tjCompress2(
         g_tjCompressor,
-        g_pixelBuf.data(),
+        g_capPixels,        // direct pointer — zero copy from capture
         g_capW, 0, g_capH,
         TJPF_BGRA,
         &jpegBuf,
