@@ -503,54 +503,72 @@ static std::string run_ps(const std::string& script) {
 // ============================================================
 
 // ============================================================
-// SCREEN CAPTURE — GDI capture + libjpeg-turbo JPEG (SIMD-accelerated)
+// SCREEN CAPTURE — Cached GDI + libjpeg-turbo JPEG
 // ============================================================
+// GDI objects are created ONCE and reused across all frames.
+// This avoids the massive overhead of Create/Delete per frame.
 
-static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
-    std::vector<BYTE> result;
+static HDC g_capScreen = NULL;
+static HDC g_capMemDC = NULL;
+static HBITMAP g_capBitmap = NULL;
+static int g_capW = 0, g_capH = 0;
+static int g_scrW = 0, g_scrH = 0;
 
+static void init_capture() {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
-
-    // Scale to 1280 wide
     int capW = screenW, capH = screenH;
     if (capW > 1280) {
         capH = (int)((double)capH * 1280.0 / capW);
         capW = 1280;
     }
 
-    HDC hScreen = GetDC(NULL);
-    if (!hScreen) return result;
-    HDC hMemDC = CreateCompatibleDC(hScreen);
-    if (!hMemDC) { ReleaseDC(NULL, hScreen); return result; }
-    HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
-    if (!hBitmap) { DeleteDC(hMemDC); ReleaseDC(NULL, hScreen); return result; }
-    HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
+    // Only recreate if resolution changed
+    if (capW == g_capW && capH == g_capH && g_capMemDC) return;
 
-    SetStretchBltMode(hMemDC, COLORONCOLOR);
-    StretchBlt(hMemDC, 0, 0, capW, capH, hScreen, 0, 0, screenW, screenH, SRCCOPY);
+    // Cleanup old
+    if (g_capBitmap) DeleteObject(g_capBitmap);
+    if (g_capMemDC) DeleteDC(g_capMemDC);
+    if (g_capScreen) ReleaseDC(NULL, g_capScreen);
 
-    SelectObject(hMemDC, hOld);
+    g_scrW = screenW;
+    g_scrH = screenH;
+    g_capW = capW;
+    g_capH = capH;
 
-    // Extract raw BGRA pixels via GetDIBits (no GDI+ needed)
+    g_capScreen = GetDC(NULL);
+    g_capMemDC = CreateCompatibleDC(g_capScreen);
+    g_capBitmap = CreateCompatibleBitmap(g_capScreen, capW, capH);
+    SelectObject(g_capMemDC, g_capBitmap);
+    SetStretchBltMode(g_capMemDC, COLORONCOLOR);
+
+    size_t pixelSize = (size_t)capW * capH * 4;
+    if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
+}
+
+static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
+    std::vector<BYTE> result;
+
+    init_capture();
+    if (!g_capMemDC) return result;
+
+    // Capture screen — reuses cached GDI objects (no alloc/free)
+    StretchBlt(g_capMemDC, 0, 0, g_capW, g_capH,
+               g_capScreen, 0, 0, g_scrW, g_scrH, SRCCOPY);
+
+    // Extract raw BGRA pixels
     BITMAPINFOHEADER bi = {};
     bi.biSize = sizeof(bi);
-    bi.biWidth = capW;
-    bi.biHeight = -capH; // negative = top-down row order
+    bi.biWidth = g_capW;
+    bi.biHeight = -g_capH;
     bi.biPlanes = 1;
     bi.biBitCount = 32;
     bi.biCompression = BI_RGB;
 
-    size_t pixelSize = (size_t)capW * capH * 4;
-    if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
+    GetDIBits(g_capMemDC, g_capBitmap, 0, g_capH,
+              g_pixelBuf.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
-    GetDIBits(hMemDC, hBitmap, 0, capH, g_pixelBuf.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
-
-    DeleteObject(hBitmap);
-    DeleteDC(hMemDC);
-    ReleaseDC(NULL, hScreen);
-
-    // JPEG encode with libjpeg-turbo (SIMD-accelerated, ~3-8ms vs GDI+ 30-50ms)
+    // JPEG encode with libjpeg-turbo
     if (!g_tjCompressor) g_tjCompressor = tjInitCompress();
     if (!g_tjCompressor) return result;
 
@@ -560,13 +578,13 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int rc = tjCompress2(
         g_tjCompressor,
         g_pixelBuf.data(),
-        capW, 0, capH,
-        TJPF_BGRA,         // matches GDI GetDIBits output
+        g_capW, 0, g_capH,
+        TJPF_BGRA,
         &jpegBuf,
         &jpegSize,
-        TJSAMP_420,         // 4:2:0 chroma = smallest file
+        TJSAMP_420,
         quality,
-        TJFLAG_FASTDCT      // fast DCT for speed
+        TJFLAG_FASTDCT | TJFLAG_NOREALLOC
     );
 
     if (rc == 0 && jpegBuf && jpegSize > 0) {
