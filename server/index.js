@@ -7,6 +7,9 @@ const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const { execFile } = require("child_process");
 const http = require("http");
 const { WebSocketServer } = require("ws");
 const { pool, initDB } = require("./db");
@@ -22,6 +25,12 @@ const screenFrames = new Map();   // sessionId -> Buffer (latest JPEG frame)
 const screenRequested = new Map(); // sessionId -> timestamp (when dashboard last requested)
 const dashboardSockets = new Map(); // sessionId -> Set<WebSocket> (dashboard viewers)
 const agentSockets = new Map();     // sessionId -> WebSocket (agent screen stream)
+
+// --- Clip Buffer: last 30 seconds at 10fps = 300 frames ---
+const CLIP_MAX_FRAMES = 300;
+const CLIP_MIN_INTERVAL_MS = 100; // 10fps cap for buffer
+const clipBuffers = new Map();    // sessionId -> { frames: Buffer[], lastPush: number }
+
 app.set("trust proxy", 1); // Trust first proxy (Railway, Heroku, etc.)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -259,6 +268,84 @@ app.get("/session/:id/screen/stream", requireUser, async (req, res) => {
   req.on("close", () => {
     clearInterval(interval);
   });
+});
+
+// --- Live Screen: Clip last 30 seconds as MP4 ---
+app.post("/session/:id/screen/clip", requireUser, async (req, res) => {
+  const sessionId = parseInt(req.params.id);
+  try {
+    const sess = await pool.query(
+      "SELECT id FROM sessions WHERE id = $1 AND user_id = $2",
+      [sessionId, req.session.userId]
+    );
+    if (sess.rows.length === 0) return res.status(403).json({ error: "Forbidden" });
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+
+  const buf = clipBuffers.get(sessionId);
+  if (!buf || buf.frames.length === 0) {
+    return res.status(404).json({ error: "No frames buffered. Start live screen first." });
+  }
+
+  // Create temp directory for frames
+  const tmpDir = path.join(os.tmpdir(), `ec-clip-${sessionId}-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const outputPath = path.join(tmpDir, "clip.mp4");
+
+  try {
+    // Write frames as sequential JPEGs
+    const frames = buf.frames.slice(); // snapshot
+    for (let i = 0; i < frames.length; i++) {
+      const framePath = path.join(tmpDir, `frame_${String(i).padStart(5, "0")}.jpg`);
+      fs.writeFileSync(framePath, frames[i]);
+    }
+
+    // Run ffmpeg: stitch JPEGs into MP4 at 10fps
+    await new Promise((resolve, reject) => {
+      const args = [
+        "-y",
+        "-framerate", "10",
+        "-i", path.join(tmpDir, "frame_%05d.jpg"),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-movflags", "+faststart",
+        outputPath
+      ];
+
+      execFile("ffmpeg", args, { timeout: 30000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error("ffmpeg error:", err.message, stderr);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    // Send the MP4
+    const stat = fs.statSync(outputPath);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").substring(0, 19);
+    res.setHeader("Content-Disposition", `attachment; filename="clip-${sessionId}-${timestamp}.mp4"`);
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Content-Length", stat.size);
+
+    const readStream = fs.createReadStream(outputPath);
+    readStream.pipe(res);
+    readStream.on("end", () => {
+      // Cleanup temp files
+      fs.rm(tmpDir, { recursive: true, force: true }, () => {});
+    });
+
+  } catch (err) {
+    // Cleanup on error
+    fs.rm(tmpDir, { recursive: true, force: true }, () => {});
+    console.error("Clip error:", err);
+    res.status(500).json({ error: "Failed to create clip. Make sure ffmpeg is installed on the server." });
+  }
 });
 
 // --- Delete Session ---
@@ -512,6 +599,18 @@ wss.on("connection", (ws, req) => {
                 viewer.send(data);
               }
             }
+          }
+
+          // Buffer frame for clip (10fps throttle)
+          const now = Date.now();
+          if (!clipBuffers.has(sessionId)) {
+            clipBuffers.set(sessionId, { frames: [], lastPush: 0 });
+          }
+          const buf = clipBuffers.get(sessionId);
+          if (now - buf.lastPush >= CLIP_MIN_INTERVAL_MS) {
+            buf.frames.push(Buffer.from(data));
+            if (buf.frames.length > CLIP_MAX_FRAMES) buf.frames.shift();
+            buf.lastPush = now;
           }
         });
 
