@@ -959,6 +959,28 @@ body.session-body {
     transition: all var(--transition);
 }
 .btn-clip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-subtle);
+}
+.btn-clip:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-clip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    color: var(--text-secondary);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.btn-clip:hover {
     border-color: var(--purple);
     color: var(--purple);
     background: rgba(167, 139, 250, 0.08);

