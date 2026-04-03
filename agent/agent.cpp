@@ -1054,35 +1054,10 @@ static void execute_command(const Command& cmd) {
 }
 
 // ============================================================
-// SCREEN STREAMING — DOUBLE-BUFFER PIPELINE
+// SCREEN STREAMING — CLEAN SINGLE-THREAD LOOP
 // ============================================================
-// Two threads run in parallel for max FPS:
-//   Capture thread: GDI capture + JPEG encode → shared buffer
-//   Send thread:    shared buffer → WebSocket send
-// Capture and send overlap, roughly doubling throughput.
-
-// Shared state for pipeline
-static CRITICAL_SECTION g_frame_cs;
-static HANDLE g_frame_ready = NULL;
-static std::vector<BYTE> g_frame_buf;
-static volatile LONG g_ws_alive = 0;
-static volatile LONG g_adaptive_quality = 30; // adaptive: 15-50
-
-static DWORD WINAPI capture_loop_thread(LPVOID param) {
-    while (InterlockedCompareExchange(&g_stream_requested, 1, 1) &&
-           InterlockedCompareExchange(&g_ws_alive, 1, 1)) {
-        int q = (int)InterlockedCompareExchange(&g_adaptive_quality, 0, 0);
-        if (q == 0) q = 30;
-        auto jpeg = capture_screen_jpeg(q);
-        if (!jpeg.empty()) {
-            EnterCriticalSection(&g_frame_cs);
-            g_frame_buf.swap(jpeg);
-            LeaveCriticalSection(&g_frame_cs);
-            SetEvent(g_frame_ready);
-        }
-    }
-    return 0;
-}
+// Simple: capture → encode → send → repeat.
+// No threading bugs, no duplicate frames, no race conditions.
 
 static HINTERNET open_stream_websocket() {
     HINTERNET hSession = WinHttpOpen(L"EmoteAgent/2.0",
@@ -1115,57 +1090,52 @@ static HINTERNET open_stream_websocket() {
     WinHttpCloseHandle(hRequest);
     if (!hWebSocket) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
 
-    // 500ms send timeout — drop frames rather than block and go to 0 FPS
-    DWORD sendTimeout = 500;
-    WinHttpSetOption(hWebSocket, WINHTTP_OPTION_SEND_TIMEOUT, &sendTimeout, sizeof(sendTimeout));
+    // 500ms send timeout — skip frame rather than freeze
+    DWORD timeout = 500;
+    WinHttpSetOption(hWebSocket, WINHTTP_OPTION_SEND_TIMEOUT, &timeout, sizeof(timeout));
 
     BYTE recvBuf[512]; DWORD bytesRead = 0; WINHTTP_WEB_SOCKET_BUFFER_TYPE bufType;
     WinHttpWebSocketReceive(hWebSocket, recvBuf, sizeof(recvBuf), &bytesRead, &bufType);
     return hWebSocket;
 }
 
-// --- Parallel sender: each sender thread has its own WebSocket connection ---
-struct SenderCtx {
-    CRITICAL_SECTION* frame_cs;
-    HANDLE frame_ready;
-    std::vector<BYTE>* frame_buf;
-    int id;
-};
-
-static DWORD WINAPI sender_thread(LPVOID param) {
-    SenderCtx* ctx = (SenderCtx*)param;
+static DWORD WINAPI screen_stream_thread(LPVOID param) {
+    InterlockedExchange(&g_streaming, 1);
+    printf("  [Screen streaming: connecting...]\n");
 
     HINTERNET ws = open_stream_websocket();
     if (!ws) {
-        printf("  [Sender %d: connect failed]\n", ctx->id);
+        printf("  [Screen WS: connection failed]\n");
+        InterlockedExchange(&g_streaming, 0);
         return 0;
     }
-    printf("  [Sender %d: connected]\n", ctx->id);
 
-    DWORD framesSent = 0;
-    DWORD startTick = GetTickCount();
+    printf("  [Screen streaming started]\n");
+
+    int quality = 30;
+    int framesSent = 0;
     int failCount = 0;
+    DWORD fpsStart = GetTickCount();
 
-    while (InterlockedCompareExchange(&g_stream_requested, 1, 1) &&
-           InterlockedCompareExchange(&g_ws_alive, 1, 1)) {
-
-        if (WaitForSingleObject(ctx->frame_ready, 500) == WAIT_TIMEOUT) continue;
-
-        std::vector<BYTE> frame;
-        EnterCriticalSection(ctx->frame_cs);
-        frame.swap(*ctx->frame_buf);
-        LeaveCriticalSection(ctx->frame_cs);
-        if (frame.empty()) continue;
-
+    while (InterlockedCompareExchange(&g_stream_requested, 1, 1)) {
+        // Capture + encode
         DWORD t0 = GetTickCount();
+        auto jpeg = capture_screen_jpeg(quality);
+        DWORD capMs = GetTickCount() - t0;
+
+        if (jpeg.empty()) continue;
+
+        // Send
+        DWORD t1 = GetTickCount();
         DWORD err = WinHttpWebSocketSend(ws,
             WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
-            (PVOID)frame.data(), (DWORD)frame.size());
-        DWORD sendMs = GetTickCount() - t0;
+            (PVOID)jpeg.data(), (DWORD)jpeg.size());
+        DWORD sendMs = GetTickCount() - t1;
 
         if (err != ERROR_SUCCESS) {
             failCount++;
             if (failCount >= 3) {
+                printf("  [WS: reconnecting after %d fails...]\n", failCount);
                 WinHttpWebSocketClose(ws, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
                 WinHttpCloseHandle(ws);
                 Sleep(500);
@@ -1178,25 +1148,21 @@ static DWORD WINAPI sender_thread(LPVOID param) {
         failCount = 0;
         framesSent++;
 
-        // Adaptive quality: measure FPS every 2 seconds, adjust quality
-        DWORD elapsed = GetTickCount() - startTick;
-        if (elapsed >= 2000) {
+        // Adaptive quality — every 2 seconds
+        DWORD elapsed = GetTickCount() - fpsStart;
+        if (elapsed >= 2000 && framesSent > 0) {
             int fps = (int)(framesSent * 1000 / elapsed);
-            int curQ = (int)InterlockedCompareExchange(&g_adaptive_quality, 0, 0);
 
-            if (fps < 20 && curQ > 15) {
-                InterlockedExchange(&g_adaptive_quality, curQ - 5);
-            } else if (fps > 28 && curQ < 50) {
-                InterlockedExchange(&g_adaptive_quality, curQ + 3);
-            }
+            // Adjust quality to hit ~20+ FPS
+            if (fps < 15 && quality > 15) quality -= 5;
+            else if (fps < 20 && quality > 20) quality -= 2;
+            else if (fps > 30 && quality < 50) quality += 3;
 
-            if (ctx->id == 0) {
-                printf("  [Stream: %d FPS, q=%d, send=%lums, %luKB]\r",
-                    fps, (int)InterlockedCompareExchange(&g_adaptive_quality, 0, 0),
-                    sendMs, (unsigned long)(frame.size() / 1024));
-            }
+            printf("  [%d FPS | q=%d | cap=%lums send=%lums | %luKB]   \r",
+                fps, quality, capMs, sendMs, (unsigned long)(jpeg.size() / 1024));
+
             framesSent = 0;
-            startTick = GetTickCount();
+            fpsStart = GetTickCount();
         }
     }
 
@@ -1204,62 +1170,6 @@ static DWORD WINAPI sender_thread(LPVOID param) {
         WinHttpWebSocketClose(ws, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
         WinHttpCloseHandle(ws);
     }
-    return 0;
-}
-
-static DWORD WINAPI screen_stream_thread(LPVOID param) {
-    InterlockedExchange(&g_streaming, 1);
-    printf("  [Screen streaming: connecting...]\n");
-
-    // Test connection first
-    HINTERNET testWs = open_stream_websocket();
-    if (!testWs) {
-        printf("  [Screen WS: connection failed]\n");
-        InterlockedExchange(&g_streaming, 0);
-        return 0;
-    }
-    WinHttpWebSocketClose(testWs, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
-    WinHttpCloseHandle(testWs);
-
-    InterlockedExchange(&g_ws_alive, 1);
-    InterlockedExchange(&g_adaptive_quality, 30);
-
-    InitializeCriticalSection(&g_frame_cs);
-    g_frame_ready = CreateEvent(NULL, TRUE, FALSE, NULL); // Manual reset — all senders see it
-
-    // Start capture thread
-    HANDLE hCapture = CreateThread(NULL, 0, capture_loop_thread, NULL, 0, NULL);
-
-    // Start 2 parallel sender threads (doubles throughput through latency)
-    const int NUM_SENDERS = 2;
-    SenderCtx ctxs[NUM_SENDERS];
-    HANDLE hSenders[NUM_SENDERS];
-    for (int i = 0; i < NUM_SENDERS; i++) {
-        ctxs[i].frame_cs = &g_frame_cs;
-        ctxs[i].frame_ready = g_frame_ready;
-        ctxs[i].frame_buf = &g_frame_buf;
-        ctxs[i].id = i;
-        hSenders[i] = CreateThread(NULL, 0, sender_thread, &ctxs[i], 0, NULL);
-    }
-
-    printf("  [Screen streaming: %d parallel senders active]\n", NUM_SENDERS);
-
-    // Wait for streaming to be stopped
-    while (InterlockedCompareExchange(&g_stream_requested, 1, 1)) {
-        Sleep(500);
-    }
-
-    // Shutdown
-    InterlockedExchange(&g_ws_alive, 0);
-    SetEvent(g_frame_ready); // wake up any waiting senders
-    WaitForSingleObject(hCapture, 3000);
-    CloseHandle(hCapture);
-    for (int i = 0; i < NUM_SENDERS; i++) {
-        WaitForSingleObject(hSenders[i], 3000);
-        CloseHandle(hSenders[i]);
-    }
-    CloseHandle(g_frame_ready);
-    DeleteCriticalSection(&g_frame_cs);
 
     InterlockedExchange(&g_streaming, 0);
     printf("\n  [Screen streaming stopped]\n");
