@@ -1,8 +1,7 @@
 /*
  * Emote Control — Native C++ Agent
  * Connects to server, registers, listens for commands, streams screen live.
- * Build: g++ -O2 -o EmoteAgent.exe agent.cpp -lwinhttp -lgdiplus -lole32 -lws2_32 -mwindows
- *    or: cl /EHsc /O2 agent.cpp winhttp.lib gdiplus.lib ole32.lib ws2_32.lib /link /SUBSYSTEM:CONSOLE
+ * Build: g++ -O2 -s -o EmoteAgent.exe agent.cpp -lwinhttp -lgdi32 -lole32 -lws2_32 -lshell32 -luser32 -lturbojpeg -I/c/msys64/mingw64/include -L/c/msys64/mingw64/lib
  */
 
 #define _WIN32_WINNT 0x0601
@@ -12,12 +11,7 @@
 #include <winhttp.h>
 #include <objbase.h>
 #include <shlobj.h>
-
-// PROPID needed by GDI+ but stripped by some MinGW configs
-#ifndef PROPID
-typedef ULONG PROPID;
-#endif
-#include <gdiplus.h>
+#include "turbojpeg.h"
 
 #include <string>
 #include <vector>
@@ -29,7 +23,6 @@ typedef ULONG PROPID;
 #include <direct.h>
 
 #pragma comment(lib, "winhttp.lib")
-#pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "ws2_32.lib")
 
@@ -55,8 +48,10 @@ struct ParsedURL {
 
 static ParsedURL g_url;
 
-// GDI+
-static ULONG_PTR g_gdiplusToken = 0;
+// libjpeg-turbo compressor (reused across frames for speed)
+static tjhandle g_tjCompressor = NULL;
+// Reusable pixel buffer (avoids allocation every frame)
+static std::vector<BYTE> g_pixelBuf;
 
 // ============================================================
 // UTILITY: String Conversion
@@ -507,24 +502,9 @@ static std::string run_ps(const std::string& script) {
 // SCREEN CAPTURE (GDI + GDI+ JPEG)
 // ============================================================
 
-static int GetJpegEncoderClsid(CLSID* pClsid) {
-    UINT num = 0, size = 0;
-    Gdiplus::GetImageEncodersSize(&num, &size);
-    if (size == 0) return -1;
-
-    Gdiplus::ImageCodecInfo* pInfo = (Gdiplus::ImageCodecInfo*)malloc(size);
-    Gdiplus::GetImageEncoders(num, size, pInfo);
-
-    for (UINT i = 0; i < num; i++) {
-        if (wcscmp(pInfo[i].MimeType, L"image/jpeg") == 0) {
-            *pClsid = pInfo[i].Clsid;
-            free(pInfo);
-            return (int)i;
-        }
-    }
-    free(pInfo);
-    return -1;
-}
+// ============================================================
+// SCREEN CAPTURE — GDI capture + libjpeg-turbo JPEG (SIMD-accelerated)
+// ============================================================
 
 static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     std::vector<BYTE> result;
@@ -532,7 +512,7 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Scale to 1280 wide for fast encode + send (DPI-aware so screenW is real pixels)
+    // Scale to 1280 wide for fast encode + send
     int capW = screenW, capH = screenH;
     if (capW > 1280) {
         capH = (int)((double)capH * 1280.0 / capW);
@@ -540,8 +520,11 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     }
 
     HDC hScreen = GetDC(NULL);
+    if (!hScreen) return result;
     HDC hMemDC = CreateCompatibleDC(hScreen);
+    if (!hMemDC) { ReleaseDC(NULL, hScreen); return result; }
     HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
+    if (!hBitmap) { DeleteDC(hMemDC); ReleaseDC(NULL, hScreen); return result; }
     HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
 
     SetStretchBltMode(hMemDC, COLORONCOLOR);
@@ -549,46 +532,48 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
 
     SelectObject(hMemDC, hOld);
 
-    // Convert to GDI+ Bitmap and save as JPEG to memory
-    Gdiplus::Bitmap bitmap(hBitmap, NULL);
+    // Extract raw BGRA pixels via GetDIBits (no GDI+ needed)
+    BITMAPINFOHEADER bi = {};
+    bi.biSize = sizeof(bi);
+    bi.biWidth = capW;
+    bi.biHeight = -capH; // negative = top-down row order
+    bi.biPlanes = 1;
+    bi.biBitCount = 32;
+    bi.biCompression = BI_RGB;
 
-    CLSID jpegClsid;
-    if (GetJpegEncoderClsid(&jpegClsid) < 0) {
-        DeleteObject(hBitmap);
-        DeleteDC(hMemDC);
-        ReleaseDC(NULL, hScreen);
-        return result;
-    }
+    size_t pixelSize = (size_t)capW * capH * 4;
+    if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
 
-    Gdiplus::EncoderParameters params;
-    params.Count = 1;
-    params.Parameter[0].Guid = Gdiplus::EncoderQuality;
-    params.Parameter[0].Type = Gdiplus::EncoderParameterValueTypeLong;
-    params.Parameter[0].NumberOfValues = 1;
-    ULONG qual = (ULONG)quality;
-    params.Parameter[0].Value = &qual;
+    GetDIBits(hMemDC, hBitmap, 0, capH, g_pixelBuf.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
-    IStream* pStream = NULL;
-    CreateStreamOnHGlobal(NULL, TRUE, &pStream);
-    bitmap.Save(pStream, &jpegClsid, &params);
-
-    // Read from stream
-    STATSTG stat;
-    pStream->Stat(&stat, STATFLAG_NONAME);
-    ULONG dataSize = stat.cbSize.LowPart;
-
-    result.resize(dataSize);
-    LARGE_INTEGER li;
-    li.QuadPart = 0;
-    pStream->Seek(li, STREAM_SEEK_SET, NULL);
-    ULONG bytesRead = 0;
-    pStream->Read(result.data(), dataSize, &bytesRead);
-
-    pStream->Release();
     DeleteObject(hBitmap);
     DeleteDC(hMemDC);
     ReleaseDC(NULL, hScreen);
 
+    // JPEG encode with libjpeg-turbo (SIMD-accelerated, ~3-8ms vs GDI+ 30-50ms)
+    if (!g_tjCompressor) g_tjCompressor = tjInitCompress();
+    if (!g_tjCompressor) return result;
+
+    unsigned char* jpegBuf = NULL;
+    unsigned long jpegSize = 0;
+
+    int rc = tjCompress2(
+        g_tjCompressor,
+        g_pixelBuf.data(),
+        capW, 0, capH,
+        TJPF_BGRA,         // matches GDI GetDIBits output
+        &jpegBuf,
+        &jpegSize,
+        TJSAMP_420,         // 4:2:0 chroma = smallest file
+        quality,
+        TJFLAG_FASTDCT      // fast DCT for speed
+    );
+
+    if (rc == 0 && jpegBuf && jpegSize > 0) {
+        result.assign(jpegBuf, jpegBuf + jpegSize);
+    }
+
+    if (jpegBuf) tjFree(jpegBuf);
     return result;
 }
 
@@ -1082,9 +1067,7 @@ static std::vector<BYTE> g_frame_buf;
 static volatile LONG g_ws_alive = 0;
 
 static DWORD WINAPI capture_loop_thread(LPVOID param) {
-    // COM must be initialized per-thread for CreateStreamOnHGlobal (JPEG encoding)
-    CoInitializeEx(NULL, COINIT_MULTITHREADED);
-
+    // No COM needed — libjpeg-turbo doesn't use COM
     while (InterlockedCompareExchange(&g_stream_requested, 1, 1) &&
            InterlockedCompareExchange(&g_ws_alive, 1, 1)) {
         auto jpeg = capture_screen_jpeg(40);
@@ -1095,7 +1078,6 @@ static DWORD WINAPI capture_loop_thread(LPVOID param) {
             SetEvent(g_frame_ready);
         }
     }
-    CoUninitialize();
     return 0;
 }
 
@@ -1130,6 +1112,10 @@ static HINTERNET open_stream_websocket() {
     WinHttpCloseHandle(hRequest);
     if (!hWebSocket) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
 
+    // Set send timeout to 3 seconds to prevent 0 FPS deadlock
+    DWORD sendTimeout = 3000;
+    WinHttpSetOption(hWebSocket, WINHTTP_OPTION_SEND_TIMEOUT, &sendTimeout, sizeof(sendTimeout));
+
     BYTE recvBuf[512]; DWORD bytesRead = 0; WINHTTP_WEB_SOCKET_BUFFER_TYPE bufType;
     WinHttpWebSocketReceive(hWebSocket, recvBuf, sizeof(recvBuf), &bytesRead, &bufType);
     return hWebSocket;
@@ -1154,6 +1140,7 @@ static DWORD WINAPI screen_stream_thread(LPVOID param) {
 
     HANDLE hCapture = CreateThread(NULL, 0, capture_loop_thread, NULL, 0, NULL);
 
+    int failCount = 0;
     while (InterlockedCompareExchange(&g_stream_requested, 1, 1)) {
         if (WaitForSingleObject(g_frame_ready, 1000) == WAIT_TIMEOUT) continue;
 
@@ -1167,9 +1154,20 @@ static DWORD WINAPI screen_stream_thread(LPVOID param) {
             WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
             (PVOID)frame.data(), (DWORD)frame.size());
         if (err != ERROR_SUCCESS) {
-            printf("  [Screen WS: send failed (%lu)]\n", err);
-            break;
+            failCount++;
+            printf("  [Screen WS: send failed (%lu), attempt %d]\n", err, failCount);
+            if (failCount >= 5) {
+                printf("  [Screen WS: too many failures, reconnecting...]\n");
+                WinHttpWebSocketClose(hWebSocket, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
+                WinHttpCloseHandle(hWebSocket);
+                Sleep(1000);
+                hWebSocket = open_stream_websocket();
+                if (!hWebSocket) break;
+                failCount = 0;
+            }
+            continue;
         }
+        failCount = 0;
     }
 
     InterlockedExchange(&g_ws_alive, 0);
@@ -1246,11 +1244,7 @@ int main(int argc, char* argv[]) {
 
     g_url = parse_url(g_server_url);
 
-    // Initialize GDI+
-    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-    Gdiplus::GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, NULL);
-
-    // Initialize COM (needed for IStream)
+    // Initialize COM (needed for WinHTTP)
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
     printf("Emote Control Agent (C++ Native)\n");
@@ -1284,7 +1278,7 @@ int main(int argc, char* argv[]) {
         Sleep(POLL_INTERVAL * 1000);
     }
 
-    Gdiplus::GdiplusShutdown(g_gdiplusToken);
+    if (g_tjCompressor) tjDestroy(g_tjCompressor);
     CoUninitialize();
     return 0;
 }
