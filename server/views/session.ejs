@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Emote Control — Session</title>
+  <title>Emote Control — <%= session.machine_name || 'Session' %></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="session-body">
   <!-- Navbar -->
   <nav class="navbar">
     <div class="navbar-inner">
@@ -22,121 +22,183 @@
       </a>
       <div class="navbar-right">
         <span class="navbar-user"><%= username %></span>
-        <a href="/dashboard" class="btn btn-outline btn-sm">Back</a>
+        <a href="/dashboard" class="btn btn-outline btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </a>
       </div>
     </div>
   </nav>
 
-  <div class="page-container">
-    <!-- Session Info Bar -->
-    <div class="session-info-bar">
-      <div class="session-info-left">
-        <div class="status-badge status-<%= session.live_status %>">
-          <span class="status-dot"></span>
-          <span id="statusText"><%= session.live_status %></span>
+  <div class="session-layout">
+    <!-- Left: Session Info + Live Screen Toggle -->
+    <aside class="session-sidebar">
+      <!-- Machine Info Card -->
+      <div class="sidebar-card machine-card">
+        <div class="machine-header">
+          <div class="machine-avatar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <div>
+            <h2 id="machineName"><%= session.machine_name || 'Waiting...' %></h2>
+            <div class="status-badge status-<%= session.live_status %>" id="statusBadge">
+              <span class="status-dot"></span>
+              <span id="statusText"><%= session.live_status %></span>
+            </div>
+          </div>
         </div>
-        <h1 id="machineName"><%= session.machine_name || 'Waiting for connection...' %></h1>
-      </div>
-      <div class="session-info-right">
-        <div class="token-display" onclick="copyToken()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-          </svg>
-          <span><%= session.token.substring(0, 20) %>...</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="copy-icon">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-          </svg>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Commands -->
-    <div class="quick-commands">
-      <button class="btn btn-outline btn-sm" onclick="sendQuick('screenshot')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        Screenshot
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="sendQuick('sysinfo')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        System Info
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="sendQuick('list_files', '.')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-        List Files
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="promptCmd()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-        Run CMD
-      </button>
-      <button class="btn btn-outline btn-sm btn-live" id="liveScreenBtn" onclick="toggleLiveScreen()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Live Screen
-      </button>
-    </div>
-
-    <!-- Live Screen Viewer -->
-    <div class="live-screen-container" id="liveScreenContainer" style="display:none;">
-      <div class="live-screen-header">
-        <div class="live-screen-title">
-          <span class="live-dot"></span>
-          <span>LIVE SCREEN</span>
-          <span class="live-fps" id="liveFps"></span>
-        </div>
-        <div class="live-screen-actions">
-          <button class="btn btn-outline btn-sm" onclick="toggleLiveScreen()">Close</button>
-        </div>
-      </div>
-      <div class="live-screen-viewport">
-        <canvas id="liveScreenCanvas"></canvas>
-        <div class="live-screen-overlay" id="liveScreenOverlay">
-          <div class="live-screen-connecting">
-            <svg class="spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-            <span>Waiting for screen stream...</span>
+        <div class="machine-details">
+          <div class="detail-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <span class="detail-token" onclick="copyToken()"><%= session.token.substring(0, 16) %>...<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
+          </div>
+          <div class="detail-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Created <%= new Date(session.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Command Console -->
-    <div class="command-console" id="console">
-      <% if (commands.length === 0) { %>
-        <div class="console-empty">
-          <p>No commands yet. Use the buttons above or type below.</p>
-        </div>
-      <% } %>
-      <% commands.forEach(cmd => { %>
-        <div class="command-entry">
-          <div class="cmd-header">
-            <span class="cmd-name"><%= cmd.command %></span>
-            <% if (cmd.args) { %><span class="cmd-args"><%= cmd.args %></span><% } %>
-            <span class="cmd-status cmd-status-<%= cmd.status %>"><%= cmd.status %></span>
+      <!-- Live Screen Toggle -->
+      <div class="sidebar-card live-toggle-card" id="liveToggleCard">
+        <div class="live-toggle-header" onclick="toggleLiveScreen()">
+          <div class="live-toggle-left">
+            <div class="live-toggle-icon" id="liveToggleIcon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <div>
+              <span class="live-toggle-label">Live Screen</span>
+              <span class="live-toggle-sub" id="liveStatus">Click to start</span>
+            </div>
           </div>
-          <% if (cmd.result) { %>
-            <pre class="cmd-result"><%= cmd.result %></pre>
+          <label class="toggle-switch" onclick="event.stopPropagation()">
+            <input type="checkbox" id="liveToggle" onchange="toggleLiveScreen()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="live-fps-bar" id="liveFpsBar" style="display:none;">
+          <span class="live-indicator"><span class="live-dot-red"></span> LIVE</span>
+          <span class="fps-counter" id="liveFps">0 FPS</span>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="sidebar-card">
+        <h3 class="sidebar-title">Quick Actions</h3>
+        <div class="quick-action-grid">
+          <button class="quick-action" onclick="sendQuick('screenshot')" title="Screenshot">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>Screenshot</span>
+          </button>
+          <button class="quick-action" onclick="sendQuick('sysinfo')" title="System Info">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Sysinfo</span>
+          </button>
+          <button class="quick-action" onclick="sendQuick('processes')" title="Processes">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
+            <span>Processes</span>
+          </button>
+          <button class="quick-action" onclick="sendQuick('wifi')" title="WiFi Info">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+            <span>WiFi</span>
+          </button>
+          <button class="quick-action" onclick="sendQuick('list_files', '.')" title="List Files">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            <span>Files</span>
+          </button>
+          <button class="quick-action" onclick="sendQuick('drives')" title="Drives">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <span>Drives</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Danger Zone -->
+      <div class="sidebar-card danger-card">
+        <form method="POST" action="/session/<%= session.id %>/delete" onsubmit="return confirm('Delete this session and all its commands?')">
+          <button type="submit" class="btn btn-danger btn-sm" style="width:100%">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Delete Session
+          </button>
+        </form>
+      </div>
+    </aside>
+
+    <!-- Right: Live Screen + Terminal -->
+    <main class="session-main">
+      <!-- Live Screen Panel (toggleable) -->
+      <div class="live-panel" id="livePanel" style="display:none;">
+        <div class="live-panel-header">
+          <div class="live-panel-title">
+            <span class="live-dot-red"></span>
+            <span>LIVE SCREEN</span>
+            <span class="live-fps-badge" id="liveFpsBadge">0 FPS</span>
+          </div>
+          <button class="btn-icon" onclick="toggleLiveScreen()" title="Close live screen">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="live-panel-viewport">
+          <canvas id="liveScreenCanvas"></canvas>
+          <div class="live-panel-overlay" id="liveScreenOverlay">
+            <div class="live-connecting">
+              <svg class="spin" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+              <span>Connecting to screen stream...</span>
+              <span class="live-connecting-sub">Make sure the agent is running</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Command Terminal -->
+      <div class="terminal-card">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="tdot red"></span>
+            <span class="tdot yellow"></span>
+            <span class="tdot green"></span>
+          </div>
+          <span class="terminal-title">Command Terminal</span>
+          <span class="terminal-session-id">#<%= session.id %></span>
+        </div>
+        <div class="terminal-body" id="console">
+          <% if (commands.length === 0) { %>
+            <div class="terminal-welcome">
+              <div class="terminal-welcome-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              </div>
+              <p>No commands yet</p>
+              <span>Use quick actions or type a command below</span>
+            </div>
+          <% } else { %>
+            <% commands.forEach(cmd => { %>
+              <div class="command-entry">
+                <div class="cmd-header">
+                  <span class="cmd-prompt-icon">$</span>
+                  <span class="cmd-name"><%= cmd.command %></span>
+                  <% if (cmd.args) { %><span class="cmd-args"><%= cmd.args %></span><% } %>
+                  <span class="cmd-status cmd-status-<%= cmd.status %>"><%= cmd.status %></span>
+                </div>
+                <% if (cmd.result) { %>
+                  <pre class="cmd-result"><%= cmd.result %></pre>
+                <% } %>
+              </div>
+            <% }); %>
           <% } %>
         </div>
-      <% }); %>
-    </div>
-
-    <!-- Command Input -->
-    <div class="command-input-row">
-      <div class="command-input-wrapper">
-        <span class="cmd-prompt">$</span>
-        <input type="text" id="cmdInput" placeholder="Type a command..." autocomplete="off">
+        <div class="terminal-input-row">
+          <span class="terminal-input-prompt">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/></svg>
+          </span>
+          <input type="text" id="cmdInput" placeholder="Type a command... (try 'help')" autocomplete="off">
+          <button class="btn-terminal-send" onclick="sendCommand()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
       </div>
-      <button class="btn btn-primary btn-send" onclick="sendCommand()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-      </button>
-    </div>
-
-    <!-- Danger Zone -->
-    <div class="danger-zone">
-      <form method="POST" action="/session/<%= session.id %>/delete" onsubmit="return confirm('Delete this session and all its commands?')">
-        <button type="submit" class="btn btn-danger btn-sm">Delete Session</button>
-      </form>
-    </div>
+    </main>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -151,14 +213,10 @@
     async function sendCommand() {
       const val = cmdInput.value.trim();
       if (!val) return;
-
-      // Parse "command args" format
       const parts = val.split(' ');
       const command = parts[0];
       const args = parts.slice(1).join(' ') || null;
-
       cmdInput.value = '';
-
       try {
         const res = await fetch(`/session/${sessionId}/command`, {
           method: 'POST',
@@ -166,9 +224,7 @@
           body: JSON.stringify({ command, args }),
         });
         if (res.ok) pollStatus();
-      } catch (err) {
-        console.error(err);
-      }
+      } catch (err) { console.error(err); }
     }
 
     function sendQuick(command, args) {
@@ -179,36 +235,26 @@
       }).then(() => pollStatus());
     }
 
-    function promptCmd() {
-      cmdInput.value = 'cmd ';
-      cmdInput.focus();
-    }
-
-    // Enter key sends
     cmdInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') sendCommand();
     });
 
-    // Poll for updates
     async function pollStatus() {
       try {
         const res = await fetch(`/session/${sessionId}/status`);
         const data = await res.json();
-
-        // Update status
-        const badge = document.querySelector('.status-badge');
+        const badge = document.getElementById('statusBadge');
         const statusText = document.getElementById('statusText');
         const machineName = document.getElementById('machineName');
-
         badge.className = `status-badge status-${data.session.live_status}`;
         statusText.textContent = data.session.live_status;
-        machineName.textContent = data.session.machine_name || 'Waiting for connection...';
+        machineName.textContent = data.session.machine_name || 'Waiting...';
 
-        // Update console
         if (data.commands.length > 0) {
           consoleEl.innerHTML = data.commands.map(cmd => `
             <div class="command-entry">
               <div class="cmd-header">
+                <span class="cmd-prompt-icon">$</span>
                 <span class="cmd-name">${cmd.command}</span>
                 ${cmd.args ? `<span class="cmd-args">${cmd.args}</span>` : ''}
                 <span class="cmd-status cmd-status-${cmd.status}">${cmd.status}</span>
@@ -218,9 +264,7 @@
           `).join('');
           consoleEl.scrollTop = consoleEl.scrollHeight;
         }
-      } catch (err) {
-        console.error('Poll error:', err);
-      }
+      } catch (err) { console.error('Poll error:', err); }
     }
 
     function escapeHtml(text) {
@@ -241,7 +285,6 @@
       setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
-    // Poll every 3 seconds
     setInterval(pollStatus, 3000);
 
     // ===== Live Screen (WebSocket) =====
@@ -261,35 +304,38 @@
 
     function startLiveScreen() {
       liveScreenActive = true;
-      const container = document.getElementById('liveScreenContainer');
+      const panel = document.getElementById('livePanel');
       const canvas = document.getElementById('liveScreenCanvas');
       const ctx = canvas.getContext('2d');
       const overlay = document.getElementById('liveScreenOverlay');
-      const btn = document.getElementById('liveScreenBtn');
-      const fpsEl = document.getElementById('liveFps');
+      const toggle = document.getElementById('liveToggle');
+      const toggleCard = document.getElementById('liveToggleCard');
+      const fpsBar = document.getElementById('liveFpsBar');
+      const liveStatus = document.getElementById('liveStatus');
+      const toggleIcon = document.getElementById('liveToggleIcon');
 
-      container.style.display = 'block';
+      panel.style.display = 'block';
       overlay.style.display = 'flex';
-      btn.classList.add('active');
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Stop Live';
+      toggle.checked = true;
+      toggleCard.classList.add('active');
+      fpsBar.style.display = 'flex';
+      liveStatus.textContent = 'Connecting...';
+      toggleIcon.classList.add('active');
 
-      // Tell server we want screen stream (so the command poll tells agent)
       fetch(`/session/${sessionId}/screen/start`, { method: 'POST' });
 
-      // Connect WebSocket for receiving frames
       const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       screenWs = new WebSocket(`${wsProto}//${location.host}?role=dashboard&session=${sessionId}`);
       screenWs.binaryType = 'arraybuffer';
 
+      screenWs.onopen = () => { liveStatus.textContent = 'Connected — streaming'; };
+
       screenWs.onmessage = function(event) {
         if (!(event.data instanceof ArrayBuffer)) return;
-
-        // Convert JPEG binary to blob URL and draw on canvas
         const blob = new Blob([event.data], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
         const img = new Image();
         img.onload = function() {
-          // Resize canvas to match image aspect ratio
           if (canvas.width !== img.width || canvas.height !== img.height) {
             canvas.width = img.width;
             canvas.height = img.height;
@@ -304,47 +350,49 @@
 
       screenWs.onclose = function() {
         if (liveScreenActive) {
-          // Auto-reconnect after 2s
-          setTimeout(() => {
-            if (liveScreenActive) startLiveScreen();
-          }, 2000);
+          liveStatus.textContent = 'Reconnecting...';
+          setTimeout(() => { if (liveScreenActive) startLiveScreen(); }, 2000);
         }
       };
 
-      // FPS counter
       frameCount = 0;
       fpsInterval = setInterval(() => {
-        fpsEl.textContent = frameCount + ' FPS';
+        const fps = frameCount;
+        document.getElementById('liveFps').textContent = fps + ' FPS';
+        document.getElementById('liveFpsBadge').textContent = fps + ' FPS';
         frameCount = 0;
       }, 1000);
 
-      // Keep alive ping every 10s (also keeps HTTP screen_requested flag fresh)
       liveKeepAlive = setInterval(() => {
-        if (screenWs && screenWs.readyState === 1) {
-          screenWs.send('keepalive');
-        }
+        if (screenWs && screenWs.readyState === 1) screenWs.send('keepalive');
         fetch(`/session/${sessionId}/screen/start`, { method: 'POST' });
       }, 10000);
     }
 
     function stopLiveScreen() {
       liveScreenActive = false;
-      const container = document.getElementById('liveScreenContainer');
-      const btn = document.getElementById('liveScreenBtn');
+      const panel = document.getElementById('livePanel');
+      const toggle = document.getElementById('liveToggle');
+      const toggleCard = document.getElementById('liveToggleCard');
+      const fpsBar = document.getElementById('liveFpsBar');
+      const liveStatus = document.getElementById('liveStatus');
+      const toggleIcon = document.getElementById('liveToggleIcon');
 
-      if (screenWs) {
-        screenWs.close();
-        screenWs = null;
-      }
-
-      container.style.display = 'none';
-      btn.classList.remove('active');
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Live Screen';
+      if (screenWs) { screenWs.close(); screenWs = null; }
+      panel.style.display = 'none';
+      toggle.checked = false;
+      toggleCard.classList.remove('active');
+      fpsBar.style.display = 'none';
+      liveStatus.textContent = 'Click to start';
+      toggleIcon.classList.remove('active');
 
       if (liveKeepAlive) clearInterval(liveKeepAlive);
       if (fpsInterval) clearInterval(fpsInterval);
       fetch(`/session/${sessionId}/screen/stop`, { method: 'POST' });
     }
+
+    // Auto-focus command input
+    cmdInput.focus();
   </script>
 </body>
 </html>

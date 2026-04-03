@@ -5,45 +5,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Emote Control — Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <style>
+    .login-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+      animation: fadeInUp 0.6s ease-out;
+    }
+    .login-inner {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 44px 36px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 0 60px rgba(232,123,53,0.06);
+      position: relative;
+      overflow: hidden;
+    }
+    .login-inner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+    .login-logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .login-logo-icon {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--accent), #d4622a);
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 30px var(--accent-glow);
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+    .login-logo-icon svg { width: 30px; height: 30px; }
+    .login-logo h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+    .login-logo p { font-size: 14px; color: var(--text-secondary); margin-top: 6px; }
+    .login-divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 8px 0 20px;
+      font-size: 11px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .login-divider::before, .login-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .login-footer {
+      text-align: center; margin-top: 24px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .login-footer a { color: var(--accent); text-decoration: none; }
+    .login-version {
+      position: fixed; bottom: 16px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px; color: var(--text-muted); opacity: 0.4;
+      z-index: 1;
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <div class="logo">
-        <div class="logo-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-          </svg>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-inner">
+        <div class="login-logo">
+          <div class="login-logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <h1>Emote Control</h1>
+          <p>Remote session management</p>
         </div>
-        <h1>Emote Control</h1>
-        <p>Sign in to your account</p>
+
+        <% if (error) { %>
+          <div class="error-msg"><%= error %></div>
+        <% } %>
+
+        <div class="login-divider">Sign in to continue</div>
+
+        <form method="POST" action="/login" autocomplete="off">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            Sign In
+          </button>
+        </form>
+
+        <div class="login-footer">
+          Secure remote management platform
+        </div>
       </div>
-
-      <% if (error) { %>
-        <div class="error-msg"><%= error %></div>
-      <% } %>
-
-      <form method="POST" action="/login" autocomplete="off">
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input type="text" id="username" name="username" placeholder="Enter username" required autofocus>
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" placeholder="Enter password" required>
-        </div>
-        <button type="submit" class="btn btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
-          </svg>
-          Sign In
-        </button>
-      </form>
-
-      <p class="auth-link">Don't have an account? <a href="/signup">Sign up</a></p>
     </div>
   </div>
+  <div class="login-version">Emote Control v2.0</div>
 </body>
 </html>
