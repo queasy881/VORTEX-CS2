@@ -590,12 +590,15 @@ wss.on("connection", (ws, req) => {
         agentSockets.set(sessionId, ws);
 
         ws.on("message", (data) => {
-          // Binary JPEG frame from agent — relay to all dashboard viewers
+          // Binary JPEG frame from agent — relay to dashboard viewers
+          // DROP frames if viewer can't keep up (prevents backpressure → 0 FPS)
           screenFrames.set(sessionId, data);
           const viewers = dashboardSockets.get(sessionId);
           if (viewers) {
             for (const viewer of viewers) {
-              if (viewer.readyState === 1) { // OPEN
+              // Only send if socket is open AND outbound buffer is under 200KB
+              // If bufferedAmount is high, viewer is slow — skip this frame
+              if (viewer.readyState === 1 && viewer.bufferedAmount < 200000) {
                 viewer.send(data);
               }
             }

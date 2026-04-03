@@ -1112,8 +1112,8 @@ static HINTERNET open_stream_websocket() {
     WinHttpCloseHandle(hRequest);
     if (!hWebSocket) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return NULL; }
 
-    // Set send timeout to 3 seconds to prevent 0 FPS deadlock
-    DWORD sendTimeout = 3000;
+    // 500ms send timeout — drop frames rather than block and go to 0 FPS
+    DWORD sendTimeout = 500;
     WinHttpSetOption(hWebSocket, WINHTTP_OPTION_SEND_TIMEOUT, &sendTimeout, sizeof(sendTimeout));
 
     BYTE recvBuf[512]; DWORD bytesRead = 0; WINHTTP_WEB_SOCKET_BUFFER_TYPE bufType;
@@ -1155,12 +1155,11 @@ static DWORD WINAPI screen_stream_thread(LPVOID param) {
             (PVOID)frame.data(), (DWORD)frame.size());
         if (err != ERROR_SUCCESS) {
             failCount++;
-            printf("  [Screen WS: send failed (%lu), attempt %d]\n", err, failCount);
-            if (failCount >= 5) {
-                printf("  [Screen WS: too many failures, reconnecting...]\n");
+            if (failCount >= 3) {
+                printf("  [Screen WS: %d failures, reconnecting...]\n", failCount);
                 WinHttpWebSocketClose(hWebSocket, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
                 WinHttpCloseHandle(hWebSocket);
-                Sleep(1000);
+                Sleep(500);
                 hWebSocket = open_stream_websocket();
                 if (!hWebSocket) break;
                 failCount = 0;
