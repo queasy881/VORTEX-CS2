@@ -44,7 +44,7 @@ static volatile LONG g_stream_requested = 0;
 static volatile LONG g_streaming = 0;
 
 static const int HEARTBEAT_INTERVAL = 15;
-static const int POLL_INTERVAL = 3;
+static const int POLL_INTERVAL = 1;
 
 // Parsed URL components
 struct ParsedURL {
