@@ -1112,6 +1112,81 @@ body:has(.wide) {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
+/* ===== Live Screen ===== */
+
+.btn-live.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.live-screen-container {
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    overflow: hidden;
+    animation: slideIn 0.3s ease-out;
+    box-shadow: 0 0 30px rgba(232, 123, 53, 0.15);
+}
+
+.live-screen-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.live-screen-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e53935;
+    animation: dotPulse 1s ease-in-out infinite;
+}
+
+.live-screen-viewport {
+    position: relative;
+    background: #000;
+    min-height: 200px;
+}
+
+.live-screen-viewport img {
+    width: 100%;
+    display: block;
+}
+
+.live-screen-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.live-screen-connecting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
 /* ===== Responsive ===== */
 
 @media (max-width: 640px) {

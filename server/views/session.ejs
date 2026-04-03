@@ -68,6 +68,32 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         Run CMD
       </button>
+      <button class="btn btn-outline btn-sm btn-live" id="liveScreenBtn" onclick="toggleLiveScreen()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Live Screen
+      </button>
+    </div>
+
+    <!-- Live Screen Viewer -->
+    <div class="live-screen-container" id="liveScreenContainer" style="display:none;">
+      <div class="live-screen-header">
+        <div class="live-screen-title">
+          <span class="live-dot"></span>
+          <span>LIVE SCREEN</span>
+        </div>
+        <div class="live-screen-actions">
+          <button class="btn btn-outline btn-sm" onclick="toggleLiveScreen()">Close</button>
+        </div>
+      </div>
+      <div class="live-screen-viewport">
+        <img id="liveScreenImg" alt="Live Screen" />
+        <div class="live-screen-overlay" id="liveScreenOverlay">
+          <div class="live-screen-connecting">
+            <svg class="spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+            <span>Waiting for screen stream...</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Command Console -->
@@ -216,6 +242,63 @@
 
     // Poll every 3 seconds
     setInterval(pollStatus, 3000);
+
+    // ===== Live Screen =====
+    let liveScreenActive = false;
+    let liveKeepAlive = null;
+
+    function toggleLiveScreen() {
+      if (liveScreenActive) {
+        stopLiveScreen();
+      } else {
+        startLiveScreen();
+      }
+    }
+
+    function startLiveScreen() {
+      liveScreenActive = true;
+      const container = document.getElementById('liveScreenContainer');
+      const img = document.getElementById('liveScreenImg');
+      const overlay = document.getElementById('liveScreenOverlay');
+      const btn = document.getElementById('liveScreenBtn');
+
+      container.style.display = 'block';
+      overlay.style.display = 'flex';
+      btn.classList.add('active');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Stop Live';
+
+      // Tell server we want screen stream
+      fetch(`/session/${sessionId}/screen/start`, { method: 'POST' });
+
+      // Start MJPEG stream
+      img.src = `/session/${sessionId}/screen/stream?t=${Date.now()}`;
+      img.onload = function() {
+        overlay.style.display = 'none';
+      };
+      img.onerror = function() {
+        // MJPEG streams fire onerror on close, ignore if intentional
+      };
+
+      // Keep alive ping every 10s
+      liveKeepAlive = setInterval(() => {
+        fetch(`/session/${sessionId}/screen/start`, { method: 'POST' });
+      }, 10000);
+    }
+
+    function stopLiveScreen() {
+      liveScreenActive = false;
+      const container = document.getElementById('liveScreenContainer');
+      const img = document.getElementById('liveScreenImg');
+      const btn = document.getElementById('liveScreenBtn');
+
+      img.src = '';
+      container.style.display = 'none';
+      btn.classList.remove('active');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Live Screen';
+
+      if (liveKeepAlive) clearInterval(liveKeepAlive);
+      fetch(`/session/${sessionId}/screen/stop`, { method: 'POST' });
+    }
   </script>
 </body>
 </html>

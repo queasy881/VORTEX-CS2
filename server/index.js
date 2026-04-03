@@ -8,8 +8,13 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const path = require("path");
 const { pool, initDB } = require("./db");
+const EventEmitter = require("events");
 
 const app = express();
+
+// --- Live Screen Streaming (in-memory) ---
+const screenFrames = new Map();   // sessionId -> Buffer (latest JPEG frame)
+const screenRequested = new Map(); // sessionId -> timestamp (when dashboard last requested)
 app.set("trust proxy", 1); // Trust first proxy (Railway, Heroku, etc.)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -182,6 +187,73 @@ app.get("/session/:id/status", requireUser, async (req, res) => {
   }
 });
 
+// --- Live Screen: Start (dashboard tells server someone is watching) ---
+app.post("/session/:id/screen/start", requireUser, async (req, res) => {
+  try {
+    const sess = await pool.query(
+      "SELECT id FROM sessions WHERE id = $1 AND user_id = $2",
+      [req.params.id, req.session.userId]
+    );
+    if (sess.rows.length === 0) return res.status(403).json({ error: "Forbidden" });
+    screenRequested.set(parseInt(req.params.id), Date.now());
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// --- Live Screen: Stop ---
+app.post("/session/:id/screen/stop", requireUser, async (req, res) => {
+  screenRequested.delete(parseInt(req.params.id));
+  screenFrames.delete(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+// --- Live Screen: MJPEG Stream ---
+app.get("/session/:id/screen/stream", requireUser, async (req, res) => {
+  const sessionId = parseInt(req.params.id);
+  try {
+    const sess = await pool.query(
+      "SELECT id FROM sessions WHERE id = $1 AND user_id = $2",
+      [sessionId, req.session.userId]
+    );
+    if (sess.rows.length === 0) return res.status(403).send("Forbidden");
+  } catch (err) {
+    return res.status(500).send("Server error");
+  }
+
+  screenRequested.set(sessionId, Date.now());
+
+  res.writeHead(200, {
+    "Content-Type": "multipart/x-mixed-replace; boundary=frame",
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Connection": "keep-alive",
+  });
+
+  let lastFrame = null;
+  const interval = setInterval(() => {
+    const frame = screenFrames.get(sessionId);
+    if (frame && frame !== lastFrame) {
+      try {
+        res.write("--frame\r\n");
+        res.write("Content-Type: image/jpeg\r\n");
+        res.write(`Content-Length: ${frame.length}\r\n\r\n`);
+        res.write(frame);
+        res.write("\r\n");
+        lastFrame = frame;
+      } catch (e) {
+        clearInterval(interval);
+      }
+    }
+    screenRequested.set(sessionId, Date.now());
+  }, 30); // ~33 FPS push rate
+
+  req.on("close", () => {
+    clearInterval(interval);
+  });
+});
+
 // --- Delete Session ---
 app.post("/session/:id/delete", requireUser, async (req, res) => {
   try {
@@ -279,6 +351,14 @@ async function requireAgentToken(req, res, next) {
   }
 }
 
+// --- Agent Screen Frame Upload ---
+app.post("/api/agent/screen", express.raw({ type: "image/jpeg", limit: "2mb" }), requireAgentToken, (req, res) => {
+  const sid = req.agentSession.id;
+  screenFrames.set(sid, req.body);
+  const needed = screenRequested.has(sid) && (Date.now() - screenRequested.get(sid)) < 30000;
+  res.json({ continue: needed });
+});
+
 app.post("/api/agent/heartbeat", requireAgentToken, async (req, res) => {
   const { machine_name } = req.body;
   try {
@@ -294,11 +374,13 @@ app.post("/api/agent/heartbeat", requireAgentToken, async (req, res) => {
 
 app.get("/api/agent/commands", requireAgentToken, async (req, res) => {
   try {
+    const sid = req.agentSession.id;
     const result = await pool.query(
       "UPDATE command_queue SET status = 'running' WHERE session_id = $1 AND status = 'pending' RETURNING *",
-      [req.agentSession.id]
+      [sid]
     );
-    res.json({ commands: result.rows });
+    const screenNeeded = screenRequested.has(sid) && (Date.now() - screenRequested.get(sid)) < 30000;
+    res.json({ commands: result.rows, screen_stream: screenNeeded });
   } catch (err) {
     res.status(500).json({ error: "Failed" });
   }
