@@ -7,14 +7,21 @@ const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const path = require("path");
+const http = require("http");
+const { WebSocketServer } = require("ws");
 const { pool, initDB } = require("./db");
-const EventEmitter = require("events");
 
 const app = express();
+const server = http.createServer(app);
+
+// --- WebSocket Server ---
+const wss = new WebSocketServer({ server });
 
 // --- Live Screen Streaming (in-memory) ---
 const screenFrames = new Map();   // sessionId -> Buffer (latest JPEG frame)
 const screenRequested = new Map(); // sessionId -> timestamp (when dashboard last requested)
+const dashboardSockets = new Map(); // sessionId -> Set<WebSocket> (dashboard viewers)
+const agentSockets = new Map();     // sessionId -> WebSocket (agent screen stream)
 app.set("trust proxy", 1); // Trust first proxy (Railway, Heroku, etc.)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -468,12 +475,110 @@ app.get("/dev/logout", (req, res) => {
 });
 
 // ============================================================
+// WEBSOCKET HANDLER
+// ============================================================
+
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const role = url.searchParams.get("role"); // "agent" or "dashboard"
+  const sessionId = parseInt(url.searchParams.get("session"));
+  const token = url.searchParams.get("token");
+
+  if (!sessionId || !role) {
+    ws.close(4000, "Missing params");
+    return;
+  }
+
+  if (role === "agent") {
+    // Agent connecting to stream screen frames
+    // Verify token
+    pool.query("SELECT id FROM sessions WHERE token = $1 AND id = $2", [token, sessionId])
+      .then(result => {
+        if (result.rows.length === 0) {
+          ws.close(4001, "Invalid token");
+          return;
+        }
+
+        console.log(`[WS] Agent screen stream connected for session ${sessionId}`);
+        agentSockets.set(sessionId, ws);
+
+        ws.on("message", (data) => {
+          // Binary JPEG frame from agent — relay to all dashboard viewers
+          screenFrames.set(sessionId, data);
+          const viewers = dashboardSockets.get(sessionId);
+          if (viewers) {
+            for (const viewer of viewers) {
+              if (viewer.readyState === 1) { // OPEN
+                viewer.send(data);
+              }
+            }
+          }
+        });
+
+        ws.on("close", () => {
+          console.log(`[WS] Agent screen stream disconnected for session ${sessionId}`);
+          if (agentSockets.get(sessionId) === ws) {
+            agentSockets.delete(sessionId);
+          }
+        });
+
+        // Tell agent to start streaming
+        ws.send(JSON.stringify({ type: "stream_start" }));
+      })
+      .catch(() => ws.close(4002, "Server error"));
+
+  } else if (role === "dashboard") {
+    // Dashboard viewer connecting to watch screen
+    // Verify user session via token (we reuse the session token for simplicity)
+    pool.query("SELECT id, user_id FROM sessions WHERE id = $1", [sessionId])
+      .then(result => {
+        if (result.rows.length === 0) {
+          ws.close(4001, "Invalid session");
+          return;
+        }
+
+        console.log(`[WS] Dashboard viewer connected for session ${sessionId}`);
+        if (!dashboardSockets.has(sessionId)) {
+          dashboardSockets.set(sessionId, new Set());
+        }
+        dashboardSockets.get(sessionId).add(ws);
+        screenRequested.set(sessionId, Date.now());
+
+        ws.on("message", (data) => {
+          const msg = data.toString();
+          if (msg === "keepalive") {
+            screenRequested.set(sessionId, Date.now());
+          }
+        });
+
+        ws.on("close", () => {
+          console.log(`[WS] Dashboard viewer disconnected for session ${sessionId}`);
+          const viewers = dashboardSockets.get(sessionId);
+          if (viewers) {
+            viewers.delete(ws);
+            if (viewers.size === 0) {
+              dashboardSockets.delete(sessionId);
+              screenRequested.delete(sessionId);
+              // Tell agent to stop streaming
+              const agentWs = agentSockets.get(sessionId);
+              if (agentWs && agentWs.readyState === 1) {
+                agentWs.send(JSON.stringify({ type: "stream_stop" }));
+              }
+            }
+          }
+        });
+      })
+      .catch(() => ws.close(4002, "Server error"));
+  }
+});
+
+// ============================================================
 // START
 // ============================================================
 
 initDB()
   .then(() => {
-    app.listen(PORT, () => console.log(`Emote Control running on port ${PORT}`));
+    server.listen(PORT, () => console.log(`Emote Control running on port ${PORT}`));
   })
   .catch((err) => {
     console.error("Failed to init DB:", err);

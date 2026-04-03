@@ -1169,12 +1169,21 @@ body:has(.wide) {
     overflow: hidden;
 }
 
-.live-screen-viewport img {
+.live-screen-viewport canvas {
     width: 100%;
-    height: 100%;
+    height: auto;
     max-height: 75vh;
     object-fit: contain;
     display: block;
+}
+
+.live-fps {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+    padding: 2px 8px;
+    background: rgba(232, 123, 53, 0.15);
+    border-radius: 4px;
 }
 
 .live-screen-overlay {

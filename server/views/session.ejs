@@ -80,13 +80,14 @@
         <div class="live-screen-title">
           <span class="live-dot"></span>
           <span>LIVE SCREEN</span>
+          <span class="live-fps" id="liveFps"></span>
         </div>
         <div class="live-screen-actions">
           <button class="btn btn-outline btn-sm" onclick="toggleLiveScreen()">Close</button>
         </div>
       </div>
       <div class="live-screen-viewport">
-        <img id="liveScreenImg" alt="Live Screen" />
+        <canvas id="liveScreenCanvas"></canvas>
         <div class="live-screen-overlay" id="liveScreenOverlay">
           <div class="live-screen-connecting">
             <svg class="spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
@@ -243,9 +244,12 @@
     // Poll every 3 seconds
     setInterval(pollStatus, 3000);
 
-    // ===== Live Screen =====
+    // ===== Live Screen (WebSocket) =====
     let liveScreenActive = false;
+    let screenWs = null;
     let liveKeepAlive = null;
+    let frameCount = 0;
+    let fpsInterval = null;
 
     function toggleLiveScreen() {
       if (liveScreenActive) {
@@ -258,29 +262,67 @@
     function startLiveScreen() {
       liveScreenActive = true;
       const container = document.getElementById('liveScreenContainer');
-      const img = document.getElementById('liveScreenImg');
+      const canvas = document.getElementById('liveScreenCanvas');
+      const ctx = canvas.getContext('2d');
       const overlay = document.getElementById('liveScreenOverlay');
       const btn = document.getElementById('liveScreenBtn');
+      const fpsEl = document.getElementById('liveFps');
 
       container.style.display = 'block';
       overlay.style.display = 'flex';
       btn.classList.add('active');
       btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Stop Live';
 
-      // Tell server we want screen stream
+      // Tell server we want screen stream (so the command poll tells agent)
       fetch(`/session/${sessionId}/screen/start`, { method: 'POST' });
 
-      // Start MJPEG stream
-      img.src = `/session/${sessionId}/screen/stream?t=${Date.now()}`;
-      img.onload = function() {
-        overlay.style.display = 'none';
-      };
-      img.onerror = function() {
-        // MJPEG streams fire onerror on close, ignore if intentional
+      // Connect WebSocket for receiving frames
+      const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      screenWs = new WebSocket(`${wsProto}//${location.host}?role=dashboard&session=${sessionId}`);
+      screenWs.binaryType = 'arraybuffer';
+
+      screenWs.onmessage = function(event) {
+        if (!(event.data instanceof ArrayBuffer)) return;
+
+        // Convert JPEG binary to blob URL and draw on canvas
+        const blob = new Blob([event.data], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = function() {
+          // Resize canvas to match image aspect ratio
+          if (canvas.width !== img.width || canvas.height !== img.height) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+          }
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          overlay.style.display = 'none';
+        };
+        img.src = url;
+        frameCount++;
       };
 
-      // Keep alive ping every 10s
+      screenWs.onclose = function() {
+        if (liveScreenActive) {
+          // Auto-reconnect after 2s
+          setTimeout(() => {
+            if (liveScreenActive) startLiveScreen();
+          }, 2000);
+        }
+      };
+
+      // FPS counter
+      frameCount = 0;
+      fpsInterval = setInterval(() => {
+        fpsEl.textContent = frameCount + ' FPS';
+        frameCount = 0;
+      }, 1000);
+
+      // Keep alive ping every 10s (also keeps HTTP screen_requested flag fresh)
       liveKeepAlive = setInterval(() => {
+        if (screenWs && screenWs.readyState === 1) {
+          screenWs.send('keepalive');
+        }
         fetch(`/session/${sessionId}/screen/start`, { method: 'POST' });
       }, 10000);
     }
@@ -288,15 +330,19 @@
     function stopLiveScreen() {
       liveScreenActive = false;
       const container = document.getElementById('liveScreenContainer');
-      const img = document.getElementById('liveScreenImg');
       const btn = document.getElementById('liveScreenBtn');
 
-      img.src = '';
+      if (screenWs) {
+        screenWs.close();
+        screenWs = null;
+      }
+
       container.style.display = 'none';
       btn.classList.remove('active');
       btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Live Screen';
 
       if (liveKeepAlive) clearInterval(liveKeepAlive);
+      if (fpsInterval) clearInterval(fpsInterval);
       fetch(`/session/${sessionId}/screen/stop`, { method: 'POST' });
     }
   </script>

