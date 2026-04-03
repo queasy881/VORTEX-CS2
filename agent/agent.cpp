@@ -532,16 +532,20 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Capture at native resolution (no downscale)
+    // Scale to 1280 wide for fast encode + send (DPI-aware so screenW is real pixels)
     int capW = screenW, capH = screenH;
+    if (capW > 1280) {
+        capH = (int)((double)capH * 1280.0 / capW);
+        capW = 1280;
+    }
 
     HDC hScreen = GetDC(NULL);
     HDC hMemDC = CreateCompatibleDC(hScreen);
     HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
     HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
 
-    // BitBlt for native res (fastest, pixel-perfect)
-    BitBlt(hMemDC, 0, 0, capW, capH, hScreen, 0, 0, SRCCOPY);
+    SetStretchBltMode(hMemDC, COLORONCOLOR);
+    StretchBlt(hMemDC, 0, 0, capW, capH, hScreen, 0, 0, screenW, screenH, SRCCOPY);
 
     SelectObject(hMemDC, hOld);
 
