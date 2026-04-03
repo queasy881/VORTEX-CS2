@@ -1240,6 +1240,10 @@ static void poll_commands() {
 // ============================================================
 
 int main(int argc, char* argv[]) {
+    // Make DPI-aware so GetSystemMetrics returns real pixel dimensions
+    // (without this, 1920x1080 at 150% scaling reports as 1280x720)
+    SetProcessDPIAware();
+
     // Optional: accept server URL as first arg
     if (argc >= 2) {
         g_server_url = argv[1];
