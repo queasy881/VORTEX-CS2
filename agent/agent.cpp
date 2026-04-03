@@ -1078,6 +1078,9 @@ static std::vector<BYTE> g_frame_buf;
 static volatile LONG g_ws_alive = 0;
 
 static DWORD WINAPI capture_loop_thread(LPVOID param) {
+    // COM must be initialized per-thread for CreateStreamOnHGlobal (JPEG encoding)
+    CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
     while (InterlockedCompareExchange(&g_stream_requested, 1, 1) &&
            InterlockedCompareExchange(&g_ws_alive, 1, 1)) {
         auto jpeg = capture_screen_jpeg(40);
@@ -1088,6 +1091,7 @@ static DWORD WINAPI capture_loop_thread(LPVOID param) {
             SetEvent(g_frame_ready);
         }
     }
+    CoUninitialize();
     return 0;
 }
 
