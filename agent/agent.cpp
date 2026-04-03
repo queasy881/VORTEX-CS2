@@ -532,11 +532,11 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Scale down to 1280 wide max for streaming speed
+    // Scale to 1920 wide max (keeps full screen visible, good perf)
     int capW = screenW, capH = screenH;
-    if (capW > 1280) {
-        capH = (int)((double)capH * 1280.0 / capW);
-        capW = 1280;
+    if (capW > 1920) {
+        capH = (int)((double)capH * 1920.0 / capW);
+        capW = 1920;
     }
 
     HDC hScreen = GetDC(NULL);
