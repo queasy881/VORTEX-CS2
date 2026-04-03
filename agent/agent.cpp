@@ -512,13 +512,11 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Scale to 960 wide for streaming (small frames = more FPS through network)
-    // Full screenshots (quality 80) still capture at 1280
+    // Scale to 1280 wide
     int capW = screenW, capH = screenH;
-    int maxW = (quality >= 60) ? 1280 : 960;
-    if (capW > maxW) {
-        capH = (int)((double)capH * (double)maxW / capW);
-        capW = maxW;
+    if (capW > 1280) {
+        capH = (int)((double)capH * 1280.0 / capW);
+        capW = 1280;
     }
 
     HDC hScreen = GetDC(NULL);
