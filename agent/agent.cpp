@@ -508,13 +508,15 @@ static std::string run_ps(const std::string& script) {
 // GDI objects are created ONCE and reused across all frames.
 // This avoids the massive overhead of Create/Delete per frame.
 
-static HDC g_capScreen = NULL;
+// Cached GDI objects (created once, reused across frames)
 static HDC g_capMemDC = NULL;
 static HBITMAP g_capBitmap = NULL;
 static int g_capW = 0, g_capH = 0;
 static int g_scrW = 0, g_scrH = 0;
 
-static void init_capture() {
+static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
+    std::vector<BYTE> result;
+
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
     int capW = screenW, capH = screenH;
@@ -523,40 +525,31 @@ static void init_capture() {
         capW = 1280;
     }
 
-    // Only recreate if resolution changed
-    if (capW == g_capW && capH == g_capH && g_capMemDC) return;
+    // Get fresh screen DC each frame (must not cache — goes stale)
+    HDC hScreen = GetDC(NULL);
+    if (!hScreen) return result;
 
-    // Cleanup old
-    if (g_capBitmap) DeleteObject(g_capBitmap);
-    if (g_capMemDC) DeleteDC(g_capMemDC);
-    if (g_capScreen) ReleaseDC(NULL, g_capScreen);
+    // Cache the memory DC and bitmap (only recreate if resolution changes)
+    if (capW != g_capW || capH != g_capH || !g_capMemDC) {
+        if (g_capBitmap) DeleteObject(g_capBitmap);
+        if (g_capMemDC) DeleteDC(g_capMemDC);
+        g_capW = capW; g_capH = capH;
+        g_scrW = screenW; g_scrH = screenH;
+        g_capMemDC = CreateCompatibleDC(hScreen);
+        g_capBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
+        SelectObject(g_capMemDC, g_capBitmap);
+        SetStretchBltMode(g_capMemDC, COLORONCOLOR);
+        size_t pixelSize = (size_t)capW * capH * 4;
+        if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
+    }
 
-    g_scrW = screenW;
-    g_scrH = screenH;
-    g_capW = capW;
-    g_capH = capH;
-
-    g_capScreen = GetDC(NULL);
-    g_capMemDC = CreateCompatibleDC(g_capScreen);
-    g_capBitmap = CreateCompatibleBitmap(g_capScreen, capW, capH);
-    SelectObject(g_capMemDC, g_capBitmap);
-    SetStretchBltMode(g_capMemDC, COLORONCOLOR);
-
-    size_t pixelSize = (size_t)capW * capH * 4;
-    if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
-}
-
-static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
-    std::vector<BYTE> result;
-
-    init_capture();
-    if (!g_capMemDC) return result;
-
-    // Capture screen — reuses cached GDI objects (no alloc/free)
+    // Capture
     StretchBlt(g_capMemDC, 0, 0, g_capW, g_capH,
-               g_capScreen, 0, 0, g_scrW, g_scrH, SRCCOPY);
+               hScreen, 0, 0, g_scrW, g_scrH, SRCCOPY);
 
-    // Extract raw BGRA pixels
+    ReleaseDC(NULL, hScreen);
+
+    // Extract BGRA pixels
     BITMAPINFOHEADER bi = {};
     bi.biSize = sizeof(bi);
     bi.biWidth = g_capW;
@@ -568,7 +561,7 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     GetDIBits(g_capMemDC, g_capBitmap, 0, g_capH,
               g_pixelBuf.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
-    // JPEG encode with libjpeg-turbo
+    // JPEG encode
     if (!g_tjCompressor) g_tjCompressor = tjInitCompress();
     if (!g_tjCompressor) return result;
 
@@ -584,7 +577,7 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
         &jpegSize,
         TJSAMP_420,
         quality,
-        TJFLAG_FASTDCT | TJFLAG_NOREALLOC
+        TJFLAG_FASTDCT
     );
 
     if (rc == 0 && jpegBuf && jpegSize > 0) {
