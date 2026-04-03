@@ -245,6 +245,8 @@
       if (e.key === 'Enter') sendCommand();
     });
 
+    let lastPollHash = '';
+
     async function pollStatus() {
       try {
         const res = await fetch(`/session/${sessionId}/status`);
@@ -256,7 +258,10 @@
         statusText.textContent = data.session.live_status;
         machineName.textContent = data.session.machine_name || 'Waiting...';
 
-        if (data.commands.length > 0) {
+        // Only re-render console if data actually changed
+        const hash = JSON.stringify(data.commands.map(c => c.id + c.status + (c.result||'').length));
+        if (hash !== lastPollHash && data.commands.length > 0) {
+          lastPollHash = hash;
           consoleEl.innerHTML = data.commands.map(cmd => `
             <div class="command-entry">
               <div class="cmd-header">
