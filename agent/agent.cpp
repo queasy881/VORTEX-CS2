@@ -520,16 +520,12 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
     int capW = screenW, capH = screenH;
-    if (capW > 1280) {
-        capH = (int)((double)capH * 1280.0 / capW);
-        capW = 1280;
-    }
 
-    // Get fresh screen DC each frame (must not cache — goes stale)
+    // Get fresh screen DC each frame
     HDC hScreen = GetDC(NULL);
     if (!hScreen) return result;
 
-    // Cache the memory DC and bitmap (only recreate if resolution changes)
+    // Cache memory DC and bitmap (only recreate if resolution changes)
     if (capW != g_capW || capH != g_capH || !g_capMemDC) {
         if (g_capBitmap) DeleteObject(g_capBitmap);
         if (g_capMemDC) DeleteDC(g_capMemDC);
@@ -538,14 +534,12 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
         g_capMemDC = CreateCompatibleDC(hScreen);
         g_capBitmap = CreateCompatibleBitmap(hScreen, capW, capH);
         SelectObject(g_capMemDC, g_capBitmap);
-        SetStretchBltMode(g_capMemDC, COLORONCOLOR);
         size_t pixelSize = (size_t)capW * capH * 4;
         if (g_pixelBuf.size() < pixelSize) g_pixelBuf.resize(pixelSize);
     }
 
-    // Capture
-    StretchBlt(g_capMemDC, 0, 0, g_capW, g_capH,
-               hScreen, 0, 0, g_scrW, g_scrH, SRCCOPY);
+    // BitBlt at native resolution — no downscale, no interpolation, just copy
+    BitBlt(g_capMemDC, 0, 0, g_capW, g_capH, hScreen, 0, 0, SRCCOPY);
 
     ReleaseDC(NULL, hScreen);
 
