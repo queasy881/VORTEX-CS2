@@ -531,11 +531,11 @@ static std::vector<BYTE> capture_screen_jpeg(int quality = 50) {
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Scale down if too large (max 1920 width)
+    // Scale down to 1280 wide max for streaming speed
     int capW = screenW, capH = screenH;
-    if (capW > 1920) {
-        capH = (int)((double)capH * 1920.0 / capW);
-        capW = 1920;
+    if (capW > 1280) {
+        capH = (int)((double)capH * 1280.0 / capW);
+        capW = 1280;
     }
 
     HDC hScreen = GetDC(NULL);
@@ -1075,7 +1075,7 @@ static DWORD WINAPI screen_stream_thread(LPVOID param) {
     printf("  [Screen streaming started]\n");
 
     while (InterlockedCompareExchange(&g_stream_requested, 1, 1)) {
-        auto jpeg = capture_screen_jpeg(45);
+        auto jpeg = capture_screen_jpeg(35);
         if (!jpeg.empty()) {
             auto resp = http_post_binary("/api/agent/screen", jpeg);
             if (resp.status == 200) {
@@ -1086,7 +1086,7 @@ static DWORD WINAPI screen_stream_thread(LPVOID param) {
                 }
             }
         }
-        Sleep(30); // ~33 FPS
+        // No sleep - network round-trip IS the rate limiter
     }
 
     InterlockedExchange(&g_streaming, 0);

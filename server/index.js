@@ -247,7 +247,7 @@ app.get("/session/:id/screen/stream", requireUser, async (req, res) => {
       }
     }
     screenRequested.set(sessionId, Date.now());
-  }, 30); // ~33 FPS push rate
+  }, 16); // Push as fast as frames arrive (~60hz check rate)
 
   req.on("close", () => {
     clearInterval(interval);
