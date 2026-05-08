@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'node:http';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { config } from './src/utils/config.js';
 import { logger } from './src/utils/logger.js';
 import { runMigrations, validateSchema } from './src/db/schemaValidator.js';
@@ -48,6 +51,19 @@ async function bootstrap() {
     }
     return express.json({ limit: '1mb' })(req, res, next);
   }, filesRouter);
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const staticDir = path.join(__dirname, 'public');
+  if (existsSync(staticDir)) {
+    app.use(express.static(staticDir, { maxAge: '1h', index: false }));
+    app.get(/^\/(?!api\/|health$).*/, (req, res, next) => {
+      const indexPath = path.join(staticDir, 'index.html');
+      if (existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+      return next();
+    });
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);
