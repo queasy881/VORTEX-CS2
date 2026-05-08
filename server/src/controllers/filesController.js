@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { PassThrough } from 'node:stream';
 import {
@@ -141,7 +140,7 @@ async function processUpload({ req, jobId, filename, originalSize, contentType, 
     contentType: 'application/x-7z-compressed',
   });
 
-  await pipeline(Readable.fromWeb(response.body), passThrough);
+  await pipeline(response.body, passThrough);
   await uploadPromise;
 
   clearInterval(pollInterval);

@@ -26,7 +26,6 @@ export const config = {
   },
   port: parseInt(optional('PORT', '3000'), 10),
   nodeEnv: optional('NODE_ENV', 'development'),
-  compressorUrl: optional('COMPRESSOR_URL', 'http://localhost:3001'),
   corsOrigin: optional('CORS_ORIGIN', '*'),
   maxUploadSizeMb: parseInt(optional('MAX_UPLOAD_SIZE_MB', '2048'), 10),
   accessTokenTtlSeconds: 60 * 15,
