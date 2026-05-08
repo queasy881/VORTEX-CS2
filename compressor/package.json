@@ -1,0 +1,16 @@
+{
+  "name": "p2p-share-compressor",
+  "version": "1.0.0",
+  "description": "Aggressive multi-stage compression worker",
+  "main": "worker.js",
+  "type": "module",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
