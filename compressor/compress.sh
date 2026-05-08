@@ -25,10 +25,10 @@ write_status() {
   mv -f "$STATUS_FILE.tmp" "$STATUS_FILE"
 }
 
-cleanup() {
-  rm -rf "$WORK_DIR"
+cleanup_intermediates() {
+  rm -rf "$WORK_DIR/extract" "$WORK_DIR/processed" "$WORK_DIR/output.7z" "$WORK_DIR/output.tar.zst" 2>/dev/null || true
 }
-trap cleanup EXIT
+trap cleanup_intermediates EXIT
 
 write_status "extracting" 5
 
