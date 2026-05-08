@@ -178,7 +178,7 @@ async function cleanupJob(job) {
   } catch (_err) {}
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`[compressor] listening on port ${PORT}`);
 });
 
