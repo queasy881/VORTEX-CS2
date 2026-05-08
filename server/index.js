@@ -69,7 +69,12 @@ async function initBackground(httpServer) {
   }
 
   try {
-    const { runMigrations, validateSchema } = await import('./src/db/schemaValidator.js');
+    const { runMigrations, validateSchema, repairLegacySchema } = await import('./src/db/schemaValidator.js');
+    logger.info('checking for legacy schema');
+    const dropped = await repairLegacySchema();
+    if (dropped.length > 0) {
+      logger.warn('dropped legacy tables with mismatched schema', { tables: dropped });
+    }
     logger.info('running database migrations');
     await runMigrations();
 

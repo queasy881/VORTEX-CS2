@@ -65,6 +65,51 @@ const REQUIRED_INDEXES = [
   'idx_refresh_tokens_hash',
 ];
 
+export async function repairLegacySchema() {
+  const dropped = [];
+  for (const tableName of Object.keys(REQUIRED_SCHEMA)) {
+    const exists = await query(
+      `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1`,
+      [tableName]
+    );
+    if (exists.rowCount === 0) continue;
+
+    const cols = await query(
+      `SELECT column_name, data_type, character_maximum_length
+       FROM information_schema.columns
+       WHERE table_schema='public' AND table_name=$1`,
+      [tableName]
+    );
+    const existingCols = {};
+    for (const row of cols.rows) {
+      existingCols[row.column_name] = {
+        type: row.data_type,
+        maxLength: row.character_maximum_length,
+      };
+    }
+
+    const expected = REQUIRED_SCHEMA[tableName].columns;
+    let mismatch = false;
+    for (const [colName, exp] of Object.entries(expected)) {
+      const actual = existingCols[colName];
+      if (!actual || actual.type !== exp.type) {
+        mismatch = true;
+        break;
+      }
+      if (exp.maxLength && actual.maxLength !== exp.maxLength) {
+        mismatch = true;
+        break;
+      }
+    }
+
+    if (mismatch) {
+      await pool.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
+      dropped.push(tableName);
+    }
+  }
+  return dropped;
+}
+
 export async function runMigrations() {
   const sqlPath = join(__dirname, 'schema.sql');
   const sql = await readFile(sqlPath, 'utf8');
