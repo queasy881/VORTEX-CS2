@@ -33,11 +33,10 @@ async function bootstrap() {
 
   const app = express();
 
-  app.use(cors({
-    origin: config.corsOrigin,
-    credentials: true,
-    exposedHeaders: ['X-Job-Id'],
-  }));
+  const corsOptions = config.corsOrigin === '*'
+    ? { origin: true, exposedHeaders: ['X-Job-Id'] }
+    : { origin: config.corsOrigin.split(',').map((s) => s.trim()), credentials: true, exposedHeaders: ['X-Job-Id'] };
+  app.use(cors(corsOptions));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
@@ -71,7 +70,7 @@ async function bootstrap() {
   const httpServer = http.createServer(app);
   attachWebSocketServer(httpServer);
 
-  httpServer.listen(config.port, () => {
+  httpServer.listen(config.port, '0.0.0.0', () => {
     logger.info(`server listening on port ${config.port}`, { env: config.nodeEnv });
   });
 
