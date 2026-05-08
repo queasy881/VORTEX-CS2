@@ -1,9 +1,12 @@
 import 'dotenv/config';
 
+const missing = [];
+
 function required(name) {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    missing.push(name);
+    return undefined;
   }
   return value;
 }
@@ -33,3 +36,5 @@ export const config = {
   bcryptCost: 12,
   signedUrlTtlSeconds: 60 * 15,
 };
+
+export const missingEnvVars = missing;
