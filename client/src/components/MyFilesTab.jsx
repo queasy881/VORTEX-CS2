@@ -3,6 +3,7 @@ import { listMyFiles, deleteFile, requestDownload, shareFile } from '../api/file
 import { listFriends } from '../api/friends.js';
 import FileRow from './FileRow.jsx';
 import ShareDialog from './ShareDialog.jsx';
+import { formatBytes } from '../utils/format.js';
 
 export default function MyFilesTab() {
   const [files, setFiles] = useState([]);
@@ -63,34 +64,59 @@ export default function MyFilesTab() {
     }
   }
 
-  if (loading) return <div className="text-slate-400">Loading…</div>;
-  if (error) return <div className="text-red-400">Error: {error}</div>;
+  const totalOriginal = files.reduce((s, f) => s + (f.originalSize || 0), 0);
+  const totalCompressed = files.reduce((s, f) => s + (f.compressedSize || 0), 0);
+  const totalSaved = totalOriginal > 0 ? ((totalOriginal - totalCompressed) / totalOriginal) * 100 : 0;
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className={`skeleton h-20 stagger-${i + 1} animate-fade-in`} />
+        ))}
+      </div>
+    );
+  }
+  if (error) return <div className="card p-4 text-rose-400">Error: {error}</div>;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">My Files</h2>
-        <span className="text-sm text-slate-400">{files.length} file{files.length === 1 ? '' : 's'}</span>
-      </div>
-
-      {files.length === 0 ? (
-        <div className="card p-8 text-center text-slate-500">
-          No files yet. Click <span className="text-brand-400 font-medium">+ Upload</span> to add one.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {files.map((f) => (
-            <FileRow
-              key={f.id}
-              file={f}
-              showOwnerActions
-              onDelete={() => onDelete(f)}
-              onDownload={() => onDownload(f)}
-              onShare={() => onShare(f)}
-            />
-          ))}
+    <div className="space-y-6">
+      {files.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-up">
+          <StatCard label="Files" value={files.length} icon="📚" color="from-violet-500 to-violet-700" />
+          <StatCard label="Storage saved" value={formatBytes(totalOriginal - totalCompressed)} icon="💾" color="from-cyan-500 to-cyan-700" />
+          <StatCard label="Avg compression" value={`${totalSaved.toFixed(1)}%`} icon="🔥" color="from-emerald-500 to-emerald-700" />
         </div>
       )}
+
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-display font-semibold">My Files</h2>
+          <span className="text-sm text-slate-500">{files.length} file{files.length === 1 ? '' : 's'}</span>
+        </div>
+
+        {files.length === 0 ? (
+          <div className="card p-12 text-center animate-scale-in">
+            <div className="text-6xl mb-4 inline-block animate-float">📦</div>
+            <div className="text-xl font-display font-semibold text-white mb-2">No files yet</div>
+            <div className="text-slate-400 text-sm">Click <span className="text-violet-400 font-semibold">+ Upload</span> to crush your first file</div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {files.map((f, i) => (
+              <div key={f.id} className={`animate-slide-up stagger-${Math.min(i + 1, 10)}`}>
+                <FileRow
+                  file={f}
+                  showOwnerActions
+                  onDelete={() => onDelete(f)}
+                  onDownload={() => onDownload(f)}
+                  onShare={() => onShare(f)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {shareTarget && (
         <ShareDialog
@@ -100,6 +126,20 @@ export default function MyFilesTab() {
           onShare={handleShareSubmit}
         />
       )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, color }) {
+  return (
+    <div className="card-hover p-4 flex items-center gap-4">
+      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-2xl shadow-lg`}>
+        {icon}
+      </div>
+      <div>
+        <div className="text-xs text-slate-500 uppercase tracking-wider">{label}</div>
+        <div className="text-xl font-display font-bold text-white mt-0.5">{value}</div>
+      </div>
     </div>
   );
 }
