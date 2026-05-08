@@ -22,7 +22,7 @@ RUN apk add --no-cache \
     ffmpeg \
     ghostscript \
     libwebp-tools \
-    mozjpeg
+    libjpeg-turbo-utils
 
 WORKDIR /app
 COPY --from=server-deps /build/server/node_modules ./node_modules
