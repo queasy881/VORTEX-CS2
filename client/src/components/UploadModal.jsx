@@ -31,41 +31,57 @@ export default function UploadModal({ onClose, onComplete }) {
     setError(null);
     setUploading(true);
 
+    const jobId = crypto.randomUUID();
+    setJob({
+      id: jobId,
+      stage: 'starting',
+      progress: 0,
+      originalSize: file.size,
+      compressedSize: 0,
+    });
+
+    const ws = openUploadSocket(jobId);
+    wsRef.current = ws;
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'snapshot' || msg.type === 'update') {
+          setJob(msg.job);
+          if (msg.job.stage === 'done') {
+            setUploading(false);
+            setTimeout(() => onComplete(msg.job.result), 1200);
+          }
+          if (msg.job.stage === 'failed') {
+            setUploading(false);
+            setError(msg.job.error || 'compression failed');
+          }
+        }
+        if (msg.type === 'error') {
+          setError(msg.error);
+        }
+      } catch (_err) {}
+    };
+    ws.onerror = () => {};
+
+    await new Promise((resolve) => {
+      if (ws.readyState === WebSocket.OPEN) return resolve();
+      ws.addEventListener('open', resolve, { once: true });
+      setTimeout(resolve, 1500);
+    });
+
     try {
-      const uploadPromise = startUpload(file);
-
-      let jobIdResolved = null;
-      uploadPromise.then((data) => {
-        jobIdResolved = data.jobId;
-        setJob({
-          id: data.jobId,
-          stage: 'uploading',
-          progress: 0,
-          originalSize: data.originalSize,
-          compressedSize: 0,
-        });
-        const ws = openUploadSocket(data.jobId);
-        wsRef.current = ws;
-        ws.onmessage = (evt) => {
-          try {
-            const msg = JSON.parse(evt.data);
-            if (msg.type === 'snapshot' || msg.type === 'update') {
-              setJob(msg.job);
-              if (msg.job.stage === 'done') {
-                setUploading(false);
-                setTimeout(() => onComplete(msg.job.result), 1200);
-              }
-              if (msg.job.stage === 'failed') {
-                setUploading(false);
-                setError(msg.job.error || 'compression failed');
-              }
-            }
-          } catch (_err) {}
-        };
-        ws.onerror = () => {};
-      });
-
-      await uploadPromise;
+      const result = await startUpload(file, jobId);
+      if (result?.file) {
+        setJob((prev) => ({
+          ...(prev || {}),
+          stage: 'done',
+          progress: 100,
+          compressedSize: result.file.compressedSize,
+          result: result.file,
+        }));
+        setUploading(false);
+        setTimeout(() => onComplete(result.file), 1200);
+      }
     } catch (err) {
       setError(err.message);
       setUploading(false);

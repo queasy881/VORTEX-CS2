@@ -35,7 +35,7 @@ export async function cancelJob(jobId) {
   return apiJson(`/api/files/jobs/${jobId}`, { method: 'DELETE' });
 }
 
-export async function startUpload(file, onProgress) {
+export async function startUpload(file, jobId) {
   const token = getAccessToken();
   const response = await fetch('/api/files/upload', {
     method: 'POST',
@@ -43,6 +43,7 @@ export async function startUpload(file, onProgress) {
       'Authorization': `Bearer ${token}`,
       'Content-Type': file.type || 'application/octet-stream',
       'X-Filename': file.name,
+      'X-Job-Id': jobId,
       'Content-Length': String(file.size),
     },
     body: file,

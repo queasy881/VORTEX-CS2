@@ -80,21 +80,10 @@ export async function postUpload(req, res) {
   const filename = req.headers['x-filename'] || `upload-${Date.now()}.bin`;
   const originalSize = parseInt(req.headers['content-length'] || '0', 10);
   const contentType = req.headers['content-type'] || 'application/octet-stream';
-  const jobId = crypto.randomUUID();
+  const jobId = req.headers['x-job-id'] || crypto.randomUUID();
+  const ownerId = req.user.id;
 
-  jobManager.create(jobId, req.user.id, filename, originalSize);
-
-  res.json({ jobId, filename, originalSize });
-
-  processUpload({ req, jobId, filename, originalSize, contentType, ownerId: req.user.id })
-    .catch((err) => {
-      logger.error('upload pipeline failed', { jobId, error: err.message });
-      jobManager.fail(jobId, err.message);
-    });
-}
-
-async function processUpload({ req, jobId, filename, originalSize, contentType, ownerId }) {
-  jobManager.update(jobId, { stage: 'compressing', progress: 5 });
+  jobManager.create(jobId, ownerId, filename, originalSize);
 
   const pollInterval = setInterval(async () => {
     try {
@@ -102,60 +91,66 @@ async function processUpload({ req, jobId, filename, originalSize, contentType, 
       if (status) {
         jobManager.update(jobId, {
           stage: status.stage || 'compressing',
-          progress: Math.min(95, status.progress || 0),
+          progress: Math.min(95, status.progress || 5),
           bytesProcessed: status.bytesProcessed || 0,
           compressedSize: status.compressedSize || 0,
-          eta: status.eta || null,
         });
       }
     } catch (_err) {}
   }, 700);
 
-  let response;
   try {
-    response = await startCompressionJob({
+    jobManager.update(jobId, { stage: 'compressing', progress: 5 });
+
+    const response = await startCompressionJob({
       jobId,
       inputStream: req,
       contentType,
       originalSize,
     });
+
+    const compressedSize = response.compressedSize || 0;
+    const trueOriginalSize = response.originalSize || originalSize;
+    jobManager.update(jobId, { stage: 'uploading', progress: 95, compressedSize });
+
+    const r2Key = generateR2Key(ownerId, filename);
+    const passThrough = new PassThrough();
+    let uploadedBytes = 0;
+    passThrough.on('data', (chunk) => {
+      uploadedBytes += chunk.length;
+    });
+
+    const uploadPromise = uploadCompressedToR2({
+      key: r2Key,
+      body: passThrough,
+      contentType: 'application/x-7z-compressed',
+    });
+
+    await pipeline(response.body, passThrough);
+    await uploadPromise;
+
+    clearInterval(pollInterval);
+
+    const finalCompressedSize = uploadedBytes || compressedSize;
+    const file = await persistFileMetadata({
+      ownerId,
+      filename,
+      r2Key,
+      originalSize: trueOriginalSize,
+      compressedSize: finalCompressedSize,
+      mimeType: contentType,
+    });
+
+    jobManager.finish(jobId, formatFile(file));
+    res.json({ jobId, file: formatFile(file) });
   } catch (err) {
     clearInterval(pollInterval);
-    throw err;
+    logger.error('upload pipeline failed', { jobId, error: err.message });
+    jobManager.fail(jobId, err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message, jobId });
+    }
   }
-
-  const compressedSize = response.compressedSize || 0;
-  jobManager.update(jobId, { stage: 'uploading', progress: 95, compressedSize });
-
-  const r2Key = generateR2Key(ownerId, filename);
-  const passThrough = new PassThrough();
-  let uploadedBytes = 0;
-  passThrough.on('data', (chunk) => {
-    uploadedBytes += chunk.length;
-  });
-
-  const uploadPromise = uploadCompressedToR2({
-    key: r2Key,
-    body: passThrough,
-    contentType: 'application/x-7z-compressed',
-  });
-
-  await pipeline(response.body, passThrough);
-  await uploadPromise;
-
-  clearInterval(pollInterval);
-
-  const finalCompressedSize = uploadedBytes || compressedSize;
-  const file = await persistFileMetadata({
-    ownerId,
-    filename,
-    r2Key,
-    originalSize,
-    compressedSize: finalCompressedSize,
-    mimeType: contentType,
-  });
-
-  jobManager.finish(jobId, formatFile(file));
 }
 
 export async function getJobStatusHandler(req, res) {

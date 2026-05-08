@@ -38,34 +38,54 @@ export function attachWebSocketServer(httpServer) {
   });
 
   function handleConnection(ws) {
-    const job = jobManager.get(ws.jobId);
+    let listener = null;
+    let waitTimer = null;
+    let waitListener = null;
 
-    if (!job) {
-      ws.send(JSON.stringify({ type: 'error', error: 'job not found' }));
-      ws.close();
-      return;
-    }
-    if (job.ownerId !== ws.userId) {
-      ws.send(JSON.stringify({ type: 'error', error: 'access denied' }));
-      ws.close();
-      return;
-    }
-
-    ws.send(JSON.stringify({ type: 'snapshot', job: snapshot(job) }));
-
-    const listener = (updatedJob) => {
-      if (updatedJob.id !== ws.jobId) return;
-      if (ws.readyState !== ws.OPEN) return;
-      ws.send(JSON.stringify({ type: 'update', job: snapshot(updatedJob) }));
-      if (updatedJob.stage === 'done' || updatedJob.stage === 'failed') {
+    function attach(job) {
+      if (job.ownerId !== ws.userId) {
+        try { ws.send(JSON.stringify({ type: 'error', error: 'access denied' })); } catch (_e) {}
         ws.close();
+        return;
       }
-    };
+      try { ws.send(JSON.stringify({ type: 'snapshot', job: snapshot(job) })); } catch (_e) {}
+      listener = (updatedJob) => {
+        if (updatedJob.id !== ws.jobId) return;
+        if (ws.readyState !== ws.OPEN) return;
+        try { ws.send(JSON.stringify({ type: 'update', job: snapshot(updatedJob) })); } catch (_e) {}
+        if (updatedJob.stage === 'done' || updatedJob.stage === 'failed') {
+          setTimeout(() => ws.close(), 250);
+        }
+      };
+      jobManager.on('update', listener);
+    }
 
-    jobManager.on('update', listener);
+    const existing = jobManager.get(ws.jobId);
+    if (existing) {
+      attach(existing);
+    } else {
+      waitListener = (job) => {
+        if (job.id === ws.jobId) {
+          jobManager.off('update', waitListener);
+          waitListener = null;
+          if (waitTimer) clearTimeout(waitTimer);
+          attach(job);
+        }
+      };
+      jobManager.on('update', waitListener);
+      waitTimer = setTimeout(() => {
+        if (waitListener) jobManager.off('update', waitListener);
+        if (!jobManager.get(ws.jobId)) {
+          try { ws.send(JSON.stringify({ type: 'error', error: 'job not found (timeout)' })); } catch (_e) {}
+          ws.close();
+        }
+      }, 30000);
+    }
 
     ws.on('close', () => {
-      jobManager.off('update', listener);
+      if (listener) jobManager.off('update', listener);
+      if (waitListener) jobManager.off('update', waitListener);
+      if (waitTimer) clearTimeout(waitTimer);
     });
 
     ws.on('error', (err) => {
